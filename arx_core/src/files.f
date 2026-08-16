@@ -1,0 +1,11 @@
+./Calc2/arx_core/src/include/BranchTypes.sv
+./include/IALUTypes.sv
+./include/LoadStoreTypes.sv
+./ExecStage.sv
+./InsnDecoder.sv
+./InsnDecodeStage.sv
+./InsnFetch.sv
+./LoadStoreUnit.sv
+./MemStage.sv
+./RegisterFile.sv
+./WriteBackStage.sv
