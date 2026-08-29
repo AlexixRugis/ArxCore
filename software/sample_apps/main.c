@@ -21,7 +21,7 @@ int main() {
     int cur = 0;
     while (true) {
         *out = cur++;
-        delay(1000);
+        //delay(1000);
     }
 
     return 0;

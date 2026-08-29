@@ -1,3 +1,10 @@
+set plusargs_list ""
+
+while {$argc > 0} {
+    lappend plusargs_list $1
+    shift
+}
+
 vlib work
 vlog -hazards -lint -sv -work work \
 ../../src/Timer.sv \
@@ -23,8 +30,8 @@ vlog -hazards -lint -sv -work work \
 ../src/WriteBackStage.sv \
 ../src/ArxCore.sv \
 ./ArxCore_tb.sv
-vsim -voptargs=+acc -L work ArxCore_tb
-add wave -r /IMDU_tb/*       
+vsim -voptargs=+acc -L work ArxCore_tb {*}$plusargs_list
+add wave -r /ArxCore_tb/*       
 
 vcd file ArxCore_tb.vcd
 vcd add -r /ArxCore_tb/*

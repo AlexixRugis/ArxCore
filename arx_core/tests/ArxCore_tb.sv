@@ -22,7 +22,6 @@ module ArxCore_tb;
     clk <= 1'b0;
     forever begin
       #(CLK_PERIOD / 2) clk <= ~clk;
-      // $display("%h", rom_addr);
     end
   end
 
@@ -240,7 +239,14 @@ module ArxCore_tb;
   // ROM emul
 
   initial begin
-    $readmemh("firmware.hex", prog_memory);
+    string filename;
+
+    if (!$value$plusargs("FIRMWARE_PATH=%s", filename)) begin
+      $fatal(1, "No firmware path provided with +FIRMWARE_PATH.");
+    end
+
+    $display(filename);
+    $readmemh(filename, prog_memory);
   end
 
   always_ff @(posedge clk or negedge arstn) begin
@@ -260,10 +266,10 @@ module ArxCore_tb;
       ram_val <= memory[ram_addr[19:2]];
       if (ram_we) begin
         //$display("RAM WRITE: *%h = %h, mask = %b", ram_addr[19:2], ram_write_data, ram_mask);
-        if (ram_mask[0]) memory[ram_addr[19:2]][7:0] = ram_write_data[7:0];
-        if (ram_mask[1]) memory[ram_addr[19:2]][15:8] = ram_write_data[15:8];
-        if (ram_mask[2]) memory[ram_addr[19:2]][23:16] = ram_write_data[23:16];
-        if (ram_mask[3]) memory[ram_addr[19:2]][31:24] = ram_write_data[31:24];
+        if (ram_mask[0]) memory[ram_addr[19:2]][7:0] <= ram_write_data[7:0];
+        if (ram_mask[1]) memory[ram_addr[19:2]][15:8] <= ram_write_data[15:8];
+        if (ram_mask[2]) memory[ram_addr[19:2]][23:16] <= ram_write_data[23:16];
+        if (ram_mask[3]) memory[ram_addr[19:2]][31:24] <= ram_write_data[31:24];
       end
     end
   end
