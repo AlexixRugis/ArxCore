@@ -10,7 +10,7 @@ module Peripherals (
     output logic [31:0] q,
     output logic [31:0] out_1
 );
-
+  logic [31:0] out_data_ff;
   logic [31:0] timer_value;
 
   Timer timer (
@@ -21,11 +21,11 @@ module Peripherals (
       .value(timer_value)
   );
 
-  always_comb begin
+  always_ff @(posedge clk or negedge arstn) begin
     case (address)
-      32'd0:   q = out_1;
-      32'd4:   q = timer_value;
-      default: q = '0;
+      32'd0:   out_data_ff <= out_1;
+      32'd4:   out_data_ff <= timer_value;
+      default: out_data_ff <= '0;
     endcase
   end
 
@@ -41,5 +41,7 @@ module Peripherals (
       end
     end
   end
+
+  assign q = out_data_ff;
 
 endmodule

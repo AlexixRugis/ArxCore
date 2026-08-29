@@ -18,12 +18,12 @@ module RamPort (
     input  logic [31:0] ram_data
 );
 
-  enum logic [1:0] {
+  typedef enum logic [1:0] {
     S_IDLE,
     S_WAIT_DATA
-  } cur_state;
+  } state_e;
 
-  //assign ack = (cur_state == S_WAIT_DATA);
+  state_e cur_state;
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
