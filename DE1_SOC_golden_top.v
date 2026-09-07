@@ -243,7 +243,8 @@ top top(
     .led_state_0(LEDR[0]),
     .led_state_1(LEDR[1]),
     .led_state_2(LEDR[2]),
-    .led_state_3(LEDR[3])
+    .led_state_3(LEDR[3]),
+    .pio_leds(LEDR[7:4])
 );
 
 

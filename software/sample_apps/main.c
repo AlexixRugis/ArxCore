@@ -1,10 +1,14 @@
 #include <stdio.h>
 #include <stdint.h>
 
-#define TICKS_PER_MS 50000
+#define TICKS_PER_MS 1000
 
 volatile int* out = (volatile int*) 0x40000000;
 volatile int* timer = (volatile int*) 0x40000004;
+
+extern volatile uint32_t* jtag_uart_status;
+
+volatile int* pio = (volatile int*)0x60000010;
 
 uint32_t get_time() {
     return *timer;
@@ -17,11 +21,18 @@ void delay(uint32_t milliseconds) {
 }
 
 int main() {
+    delay(500);
+    *out = ((*jtag_uart_status) >> 16);
+    printf("Hello from ArxCore!\n");
+    printf("Designed by AlexixRugis \\(-.-)/");
 
-    int cur = 0;
+    *out = ((*jtag_uart_status) >> 16);
+
+    int c = 0;
     while (true) {
-        *out = cur++;
-        //delay(1000);
+        //printf("Out = %d\n", c);
+        //*out = c++;
+        delay(500);
     }
 
     return 0;

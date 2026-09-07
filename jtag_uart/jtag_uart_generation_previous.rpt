@@ -1,0 +1,97 @@
+Info: Starting: Create simulation model
+Info: qsys-generate /home/alexix/Repos/ArxCore/jtag_uart.qsys --simulation=VERILOG --allow-mixed-language-simulation --output-directory=/home/alexix/Repos/ArxCore/jtag_uart/simulation --family="Cyclone V" --part=5CSEMA5F31C6
+Progress: Loading ArxCore/jtag_uart.qsys
+Progress: Reading input file
+Progress: Adding bridge_0 [altera_up_external_bus_to_avalon_bridge 18.0]
+Progress: Parameterizing module bridge_0
+Progress: Adding clk_0 [clock_source 25.1]
+Progress: Parameterizing module clk_0
+Progress: Adding jtag_uart_0 [altera_avalon_jtag_uart 25.1]
+Progress: Parameterizing module jtag_uart_0
+Progress: Building connections
+Progress: Parameterizing connections
+Progress: Validating
+Progress: Done reading input file
+Info: jtag_uart.jtag_uart_0: JTAG UART IP input clock need to be at least double (2x) the operating frequency of JTAG TCK on board
+Warning: jtag_uart.jtag_uart_0: Interrupt sender jtag_uart_0.irq is not connected to an interrupt receiver
+Info: jtag_uart: Generating "jtag_uart" for SIM_VERILOG
+Info: Interconnect is inserted between master bridge_0.avalon_master and slave jtag_uart_0.avalon_jtag_slave because the master has byteenable signal 4 bit wide, but the slave is 0 bit wide.
+Info: Interconnect is inserted between master bridge_0.avalon_master and slave jtag_uart_0.avalon_jtag_slave because the master has address signal 30 bit wide, but the slave is 1 bit wide.
+Info: bridge_0: Starting Generation of External Bus to Avalon Bridge
+Info: bridge_0: "jtag_uart" instantiated altera_up_external_bus_to_avalon_bridge "bridge_0"
+Info: jtag_uart_0: "jtag_uart" instantiated altera_avalon_jtag_uart "jtag_uart_0"
+Info: mm_interconnect_0: "jtag_uart" instantiated altera_mm_interconnect "mm_interconnect_0"
+Info: rst_controller: "jtag_uart" instantiated altera_reset_controller "rst_controller"
+Info: bridge_0_avalon_master_translator: "mm_interconnect_0" instantiated altera_merlin_master_translator "bridge_0_avalon_master_translator"
+Info: jtag_uart_0_avalon_jtag_slave_translator: "mm_interconnect_0" instantiated altera_merlin_slave_translator "jtag_uart_0_avalon_jtag_slave_translator"
+Info: jtag_uart: Done "jtag_uart" with 7 modules, 14 files
+Info: qsys-generate succeeded.
+Info: Finished: Create simulation model
+Info: Starting: Create Modelsim Project.
+Info: sim-script-gen --spd=/home/alexix/Repos/ArxCore/jtag_uart/jtag_uart.spd --output-directory=/home/alexix/Repos/ArxCore/jtag_uart/simulation/ --use-relative-paths=true
+Info: Doing: ip-make-simscript --spd=/home/alexix/Repos/ArxCore/jtag_uart/jtag_uart.spd --output-directory=/home/alexix/Repos/ArxCore/jtag_uart/simulation/ --use-relative-paths=true
+Info: Generating the following file(s) for VCS simulator in /home/alexix/Repos/ArxCore/jtag_uart/simulation/ directory:
+Info: 	synopsys/vcs/vcs_setup.sh
+Info: Generating the following file(s) for XCELIUM simulator in /home/alexix/Repos/ArxCore/jtag_uart/simulation/ directory:
+Info: 	xcelium/cds.lib
+Info: 	xcelium/hdl.var
+Info: 	xcelium/xcelium_setup.sh
+Info: 	6 .cds.lib files in xcelium/cds_libs/ directory
+Info: Generating the following file(s) for RIVIERA simulator in /home/alexix/Repos/ArxCore/jtag_uart/simulation/ directory:
+Info: 	aldec/rivierapro_setup.tcl
+Info: Generating the following file(s) for MODELSIM simulator in /home/alexix/Repos/ArxCore/jtag_uart/simulation/ directory:
+Info: 	mentor/msim_setup.tcl
+Info: Generating the following file(s) for VCSMX simulator in /home/alexix/Repos/ArxCore/jtag_uart/simulation/ directory:
+Info: 	synopsys/vcsmx/synopsys_sim.setup
+Info: 	synopsys/vcsmx/vcsmx_setup.sh
+Info: For information on how to simulate your IP, see the explanatory comments in the simulator-specific subdirectories under /home/alexix/Repos/ArxCore/jtag_uart/simulation/.
+Info: Regenerate these scripts whenever you make any change to any Quartus-generated IP in your project.
+Info: Finished: Create Modelsim Project.
+Info: Starting: Create block symbol file (.bsf)
+Info: qsys-generate /home/alexix/Repos/ArxCore/jtag_uart.qsys --block-symbol-file --output-directory=/home/alexix/Repos/ArxCore/jtag_uart --family="Cyclone V" --part=5CSEMA5F31C6
+Progress: Loading ArxCore/jtag_uart.qsys
+Progress: Reading input file
+Progress: Adding bridge_0 [altera_up_external_bus_to_avalon_bridge 18.0]
+Progress: Parameterizing module bridge_0
+Progress: Adding clk_0 [clock_source 25.1]
+Progress: Parameterizing module clk_0
+Progress: Adding jtag_uart_0 [altera_avalon_jtag_uart 25.1]
+Progress: Parameterizing module jtag_uart_0
+Progress: Building connections
+Progress: Parameterizing connections
+Progress: Validating
+Progress: Done reading input file
+Info: jtag_uart.jtag_uart_0: JTAG UART IP input clock need to be at least double (2x) the operating frequency of JTAG TCK on board
+Warning: jtag_uart.jtag_uart_0: Interrupt sender jtag_uart_0.irq is not connected to an interrupt receiver
+Info: qsys-generate succeeded.
+Info: Finished: Create block symbol file (.bsf)
+Info: 
+Info: Starting: Create HDL design files for synthesis
+Info: qsys-generate /home/alexix/Repos/ArxCore/jtag_uart.qsys --synthesis=VERILOG --output-directory=/home/alexix/Repos/ArxCore/jtag_uart/synthesis --family="Cyclone V" --part=5CSEMA5F31C6
+Progress: Loading ArxCore/jtag_uart.qsys
+Progress: Reading input file
+Progress: Adding bridge_0 [altera_up_external_bus_to_avalon_bridge 18.0]
+Progress: Parameterizing module bridge_0
+Progress: Adding clk_0 [clock_source 25.1]
+Progress: Parameterizing module clk_0
+Progress: Adding jtag_uart_0 [altera_avalon_jtag_uart 25.1]
+Progress: Parameterizing module jtag_uart_0
+Progress: Building connections
+Progress: Parameterizing connections
+Progress: Validating
+Progress: Done reading input file
+Info: jtag_uart.jtag_uart_0: JTAG UART IP input clock need to be at least double (2x) the operating frequency of JTAG TCK on board
+Warning: jtag_uart.jtag_uart_0: Interrupt sender jtag_uart_0.irq is not connected to an interrupt receiver
+Info: jtag_uart: Generating "jtag_uart" for QUARTUS_SYNTH
+Info: Interconnect is inserted between master bridge_0.avalon_master and slave jtag_uart_0.avalon_jtag_slave because the master has byteenable signal 4 bit wide, but the slave is 0 bit wide.
+Info: Interconnect is inserted between master bridge_0.avalon_master and slave jtag_uart_0.avalon_jtag_slave because the master has address signal 30 bit wide, but the slave is 1 bit wide.
+Info: bridge_0: Starting Generation of External Bus to Avalon Bridge
+Info: bridge_0: "jtag_uart" instantiated altera_up_external_bus_to_avalon_bridge "bridge_0"
+Info: jtag_uart_0: "jtag_uart" instantiated altera_avalon_jtag_uart "jtag_uart_0"
+Info: mm_interconnect_0: "jtag_uart" instantiated altera_mm_interconnect "mm_interconnect_0"
+Info: rst_controller: "jtag_uart" instantiated altera_reset_controller "rst_controller"
+Info: bridge_0_avalon_master_translator: "mm_interconnect_0" instantiated altera_merlin_master_translator "bridge_0_avalon_master_translator"
+Info: jtag_uart_0_avalon_jtag_slave_translator: "mm_interconnect_0" instantiated altera_merlin_slave_translator "jtag_uart_0_avalon_jtag_slave_translator"
+Info: jtag_uart: Done "jtag_uart" with 7 modules, 14 files
+Info: qsys-generate succeeded.
+Info: Finished: Create HDL design files for synthesis

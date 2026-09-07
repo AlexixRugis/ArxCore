@@ -7,6 +7,9 @@
 extern volatile int* out;
 extern volatile int* timer;
 
+volatile uint32_t* jtag_uart_data = (volatile uint32_t*)0x60000000;
+volatile uint32_t* jtag_uart_status = (volatile uint32_t*)0x60000004;
+
 char out_buf[2048];
 unsigned int out_ind = 0;
 
@@ -21,7 +24,9 @@ static char* heap_ptr = &_end;
 // Вывод символов (для printf, puts и т.д.)
 int _write(int file, char *ptr, int len) {
     for (int i = 0; i < len; i++) {
-        out_buf[out_ind++] = ptr[i];
+        //while (((*jtag_uart_status) >> 16) == 0); // bad
+        *jtag_uart_data = ptr[i];
+        //out_buf[out_ind++] = ptr[i];
     }
     return len;
 }

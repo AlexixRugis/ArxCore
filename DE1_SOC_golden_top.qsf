@@ -806,6 +806,14 @@ set_global_assignment -name EDA_TEST_BENCH_FILE arx_core/src/InsnFetch.sv -secti
 set_global_assignment -name EDA_DESIGN_INSTANCE_NAME NA -section_id ArxCore_tb
 set_global_assignment -name EDA_TEST_BENCH_MODULE_NAME ArxCore_tb -section_id ArxCore_tb
 set_global_assignment -name EDA_TEST_BENCH_FILE arx_core/tests/ArxCore_tb.sv -section_id ArxCore_tb
+set_global_assignment -name EDA_TIME_SCALE "1 ps" -section_id eda_simulation
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+set_global_assignment -name SYSTEMVERILOG_FILE src/ArxToAvalon.sv
+set_global_assignment -name QIP_FILE jtag_uart/synthesis/jtag_uart.qip
+set_global_assignment -name SIP_FILE jtag_uart/simulation/jtag_uart.sip
 set_global_assignment -name SYSTEMVERILOG_FILE arx_core/src/IMUL.sv
 set_global_assignment -name SYSTEMVERILOG_FILE arx_core/src/IMDU.sv
 set_global_assignment -name SYSTEMVERILOG_FILE arx_core/src/IDIV.sv
@@ -849,10 +857,5 @@ set_global_assignment -name QIP_FILE ram.qip
 set_global_assignment -name QIP_FILE rom.qip
 set_global_assignment -name SYSTEMVERILOG_FILE src/RomPort.sv
 set_global_assignment -name SIGNALTAP_FILE stp1.stp
-set_global_assignment -name EDA_TIME_SCALE "1 ps" -section_id eda_simulation
-set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
-set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
-set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
-set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
-set_global_assignment -name SLD_FILE db/stp1_auto_stripped.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name SLD_FILE db/stp1_auto_stripped.stp

@@ -32,7 +32,15 @@ module MemoryInterconnect (
     output logic [31:0] periph_write_data,
     output logic        periph_wr_en,
     output logic [ 3:0] periph_wr_mask,
-    input  logic [31:0] periph_data
+    input  logic [31:0] periph_data,
+
+    output logic [29:0] avalon_addr,
+    output logic [31:0] avalon_write_data,
+    output logic avalon_read,
+    output logic avalon_write,
+    output logic [3:0] avalon_wr_mask,
+    input logic [31:0] avalon_data,
+    input logic avalon_ack
 );
 
   localparam logic [31:0] ROM_ADDR_MASK    = 32'b1110_0000_0000_0000_0000_0000_0000_0000;
@@ -44,17 +52,23 @@ module MemoryInterconnect (
   localparam logic [31:0] PERIPH_ADDR_MASK = 32'b1110_0000_0000_0000_0000_0000_0000_0000;
   localparam logic [31:0] PERIPH_ADDR      = 32'b0100_0000_0000_0000_0000_0000_0000_0000;
 
+  localparam logic [31:0] AVALON_ADDR_MASK = 32'b1110_0000_0000_0000_0000_0000_0000_0000;
+  localparam logic [31:0] AVALON_ADDR      = 32'b0110_0000_0000_0000_0000_0000_0000_0000;
+
   logic master1_rom_req;
   assign master1_rom_req = ((ROM_ADDR_MASK & master1_addr) == ROM_ADDR) & master1_req;
   logic master1_ram_req;
   assign master1_ram_req = ((RAM_ADDR_MASK & master1_addr) == RAM_ADDR) & master1_req;
   logic master1_periph_req;
   assign master1_periph_req = ((PERIPH_ADDR_MASK & master1_addr) == PERIPH_ADDR) & master1_req;
+  logic master1_avalon_req;
+  assign master1_avalon_req = ((AVALON_ADDR_MASK & master1_addr) == AVALON_ADDR) & master1_req;
   logic master1_bad_req;
-  assign master1_bad_req = master1_req 
-                        & ((RAM_ADDR_MASK & master1_addr) != RAM_ADDR) 
+  assign master1_bad_req = master1_req
+                        & ((RAM_ADDR_MASK & master1_addr) != RAM_ADDR)
                         & ((ROM_ADDR_MASK & master1_addr) != ROM_ADDR)
-                        & ((PERIPH_ADDR_MASK & master1_addr) != PERIPH_ADDR);
+                        & ((PERIPH_ADDR_MASK & master1_addr) != PERIPH_ADDR)
+                        & ((AVALON_ADDR_MASK & master1_addr) != AVALON_ADDR);
 
   logic master2_rom_req;
   assign master2_rom_req = ((ROM_ADDR_MASK & master2_addr) == ROM_ADDR) & master2_req;
@@ -62,11 +76,14 @@ module MemoryInterconnect (
   assign master2_ram_req = ((RAM_ADDR_MASK & master2_addr) == RAM_ADDR) & master2_req;
   logic master2_periph_req;
   assign master2_periph_req = ((PERIPH_ADDR_MASK & master2_addr) == PERIPH_ADDR) & master2_req;
+  logic master2_avalon_req;
+  assign master2_avalon_req = ((AVALON_ADDR_MASK & master2_addr) == AVALON_ADDR) & master2_req;
   logic master2_bad_req;
   assign master2_bad_req = master2_req 
                         & ((RAM_ADDR_MASK & master2_addr) != RAM_ADDR)
                         & ((ROM_ADDR_MASK & master2_addr) != ROM_ADDR)
-                        & ((PERIPH_ADDR_MASK & master2_addr) != PERIPH_ADDR);
+                        & ((PERIPH_ADDR_MASK & master2_addr) != PERIPH_ADDR)
+                        & ((AVALON_ADDR_MASK & master2_addr) != AVALON_ADDR);
 
   logic [31:0] rom_arb_master1_data;
   logic        rom_arb_master1_ack;
@@ -230,13 +247,77 @@ module MemoryInterconnect (
       .slave_write_data(periph_arb_write_data)
   );
 
+  logic [31:0] avalon_arb_master1_data;
+  logic        avalon_arb_master1_ack;
+  logic [31:0] avalon_arb_master2_data;
+  logic        avalon_arb_master2_ack;
+
+  logic [31:0] avalon_arb_addr;
+  logic [31:0] avalon_arb_data;
+  logic [31:0] avalon_arb_write_data;
+  logic [ 3:0] avalon_arb_wr_mask;
+  logic        avalon_arb_wr_en;
+  logic        avalon_arb_req;
+  logic        avalon_arb_ack;
+
+  ArxToAvalon arx_to_avalon_port_inst (
+      .clk(clk),
+      .arstn(arstn),
+      .clk_en(clk_en),
+
+      .addr(avalon_arb_addr),
+      .write_data(avalon_arb_write_data),
+      .wr_en(avalon_arb_wr_en),
+      .wr_mask(avalon_arb_wr_mask),
+      .req(avalon_arb_req),
+      .data(avalon_arb_data),
+      .ack(avalon_arb_ack),
+
+      .avalon_addr(avalon_addr),
+      .avalon_write_data(avalon_write_data),
+      .avalon_write_mask(avalon_wr_mask),
+      .avalon_read_data(avalon_data),
+      .avalon_ack(avalon_ack),
+      .avalon_read(avalon_read),
+      .avalon_write(avalon_write)
+  );
+
+  RamArbiter2to1 avalon_arbiter (
+      .clk(clk),
+      .arstn(arstn),
+      .clk_en(clk_en),
+      .master1_addr(master1_addr & ~AVALON_ADDR_MASK),
+      .master1_write_data(master1_write_data),
+      .master1_wr_en(master1_wr_en),
+      .master1_wr_mask(master1_wr_mask),
+      .master1_req(master1_avalon_req),
+      .master1_data(avalon_arb_master1_data),
+      .master1_ack(avalon_arb_master1_ack),
+      .master2_addr(master2_addr & ~AVALON_ADDR_MASK),
+      .master2_write_data(master2_write_data),
+      .master2_wr_en(master2_wr_en),
+      .master2_wr_mask(master2_wr_mask),
+      .master2_req(master2_avalon_req),
+      .master2_data(avalon_arb_master2_data),
+      .master2_ack(avalon_arb_master2_ack),
+      .slave_addr(avalon_arb_addr),
+      .slave_req(avalon_arb_req),
+      .slave_ack(avalon_arb_ack),
+      .slave_data(avalon_arb_data),
+      .slave_wr_en(avalon_arb_wr_en),
+      .slave_wr_mask(avalon_arb_wr_mask),
+      .slave_write_data(avalon_arb_write_data)
+  );
+
   logic master1_rom_req_delay;
   logic master1_ram_req_delay;
   logic master1_periph_req_delay;
+  logic master1_avalon_req_delay;
   logic master1_bad_req_delay;
   logic master2_rom_req_delay;
   logic master2_ram_req_delay;
   logic master2_periph_req_delay;
+  logic master2_avalon_req_delay;
   logic master2_bad_req_delay;
 
   always_ff @(posedge clk or negedge arstn) begin
@@ -244,19 +325,23 @@ module MemoryInterconnect (
       master1_rom_req_delay <= 1'b0;
       master1_ram_req_delay <= 1'b0;
       master1_periph_req_delay <= 1'b0;
+      master1_avalon_req_delay <= 1'b0;
       master1_bad_req_delay <= 1'b0;
       master2_rom_req_delay <= 1'b0;
       master2_ram_req_delay <= 1'b0;
       master2_periph_req_delay <= 1'b0;
+      master2_avalon_req_delay <= 1'b0;
       master2_bad_req_delay <= 1'b0;
     end else begin
       master1_rom_req_delay <= master1_rom_req;
       master1_ram_req_delay <= master1_ram_req;
       master1_periph_req_delay <= master1_periph_req;
+      master1_avalon_req_delay <= master1_avalon_req;
       master1_bad_req_delay <= master1_bad_req;
       master2_rom_req_delay <= master2_rom_req;
       master2_ram_req_delay <= master2_ram_req;
       master2_periph_req_delay <= master2_periph_req;
+      master2_avalon_req_delay <= master2_avalon_req;
       master2_bad_req_delay <= master2_bad_req;
     end
   end
@@ -276,6 +361,9 @@ module MemoryInterconnect (
     end else if (master1_periph_req_delay) begin
       master1_data = periph_arb_master1_data;
       master1_ack  = periph_arb_master1_ack;
+    end else if (master1_avalon_req_delay) begin
+      master1_data = avalon_arb_master1_data;
+      master1_ack  = avalon_arb_master1_ack;
     end else if (master1_bad_req_delay) begin
       master1_data = '1;
       master1_ack  = 1'b1;
@@ -290,6 +378,9 @@ module MemoryInterconnect (
     end else if (master2_periph_req_delay) begin
       master2_data = periph_arb_master2_data;
       master2_ack  = periph_arb_master2_ack;
+    end else if (master2_avalon_req_delay) begin
+      master2_data = avalon_arb_master2_data;
+      master2_ack  = avalon_arb_master2_ack;
     end else if (master2_bad_req_delay) begin
       master2_data = '1;
       master2_ack  = 1'b1;

@@ -16,7 +16,9 @@ module top (
     output logic led_state_0,
     output logic led_state_1,
     output logic led_state_2,
-    output logic led_state_3
+    output logic led_state_3,
+
+    output logic [3:0] pio_leds
 );
 
   logic clk_en;
@@ -129,6 +131,28 @@ module top (
       .out_1(out_1)
   );
 
+  logic [29:0] jtag_uart_bridge_address;
+  logic [3:0] jtag_uart_byte_enable;
+  logic jtag_uart_read;
+  logic jtag_uart_write;
+  logic [31:0] jtag_uart_write_data;
+  logic [31:0] jtag_uart_read_data;
+  logic jtag_uart_ack;
+  logic [7:0] pio_out;
+
+  jtag_uart jtag_uart (
+      .clk_clk(clk_50_mhz),
+      .reset_reset_n(arstn),
+      .bridge_address(jtag_uart_bridge_address),
+      .bridge_byte_enable(jtag_uart_byte_enable),
+      .bridge_read(jtag_uart_read),
+      .bridge_write(jtag_uart_write),
+      .bridge_write_data(jtag_uart_write_data),
+      .bridge_acknowledge(jtag_uart_ack),
+      .bridge_read_data(jtag_uart_read_data),
+      .pio_export(pio_out)
+  );
+
   MemoryInterconnect interconn (
       .clk(clk_50_mhz),
       .arstn(arstn),
@@ -163,7 +187,15 @@ module top (
       .periph_write_data(periph_write_data),
       .periph_wr_en(periph_we),
       .periph_wr_mask(periph_mask),
-      .periph_data(periph_val)
+      .periph_data(periph_val),
+
+      .avalon_addr(jtag_uart_bridge_address),
+      .avalon_write_data(jtag_uart_write_data),
+      .avalon_read(jtag_uart_read),
+      .avalon_write(jtag_uart_write),
+      .avalon_wr_mask(jtag_uart_byte_enable),
+      .avalon_data(jtag_uart_read_data),
+      .avalon_ack(jtag_uart_ack)
   );
 
   logic [31:0] dbg_x1;
@@ -362,6 +394,8 @@ module top (
 
   assign led_state_0 = sw[3];
   assign led_state_1 = halted;
+
+  assign pio_leds = pio_out[3:0];
 
   /*assign led_state_0 = fs_start;
 assign led_state_1 = lsb_start;

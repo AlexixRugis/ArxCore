@@ -124,11 +124,27 @@
 					"strict" : false
 				},
 				{
-					"name" : "GPIO_0[7]",
+					"name" : "LEDR[4]",
 					"strict" : false
 				},
 				{
-					"name" : "GPIO_0[9]",
+					"name" : "LEDR[5]",
+					"strict" : false
+				},
+				{
+					"name" : "LEDR[6]",
+					"strict" : false
+				},
+				{
+					"name" : "LEDR[7]",
+					"strict" : false
+				},
+				{
+					"name" : "GPIO_0[1]",
+					"strict" : false
+				},
+				{
+					"name" : "GPIO_0[3]",
 					"strict" : false
 				},
 				{
