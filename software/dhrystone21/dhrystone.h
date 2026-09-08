@@ -386,7 +386,7 @@ static inline unsigned int barebones_clock(void) {
     return *timer;
 }
 
-#define HZ 50000000
+#define HZ 1000000
 #define Too_Small_Time (2 * HZ)
 #define CLOCK_TYPE "barebones timer"
 #define Start_Timer() Begin_Time = barebones_clock()

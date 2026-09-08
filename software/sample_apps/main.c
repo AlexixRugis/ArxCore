@@ -24,14 +24,14 @@ int main() {
     delay(500);
     *out = ((*jtag_uart_status) >> 16);
     printf("Hello from ArxCore!\n");
-    printf("Designed by AlexixRugis \\(-.-)/");
+    printf("Designed by AlexixRugis \\(-.-)/\n");
 
     *out = ((*jtag_uart_status) >> 16);
 
     int c = 0;
     while (true) {
-        //printf("Out = %d\n", c);
-        //*out = c++;
+        printf("Out = %d\n", c);
+        *out = c++;
         delay(500);
     }
 
