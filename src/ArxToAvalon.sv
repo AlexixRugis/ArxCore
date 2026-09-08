@@ -20,7 +20,7 @@ module ArxToAvalon (
     output logic avalon_write
 );
 
-  assign avalon_addr = addr[31:2];
+  assign avalon_addr = addr[29:0];
   assign avalon_write_data = write_data;
   assign avalon_write_mask = wr_mask;
 
@@ -47,7 +47,7 @@ module ArxToAvalon (
     end
     else begin
         if (clk_en) begin
-            if (ack && avalon_read) begin
+            if (avalon_ack && avalon_read) begin
                 read_data_ff <= avalon_read_data;
             end
         end

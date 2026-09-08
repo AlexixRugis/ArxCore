@@ -24,7 +24,7 @@ static char* heap_ptr = &_end;
 // Вывод символов (для printf, puts и т.д.)
 int _write(int file, char *ptr, int len) {
     for (int i = 0; i < len; i++) {
-        //while (((*jtag_uart_status) >> 16) == 0); // bad
+        while (((*jtag_uart_status) >> 16) == 0);
         *jtag_uart_data = ptr[i];
         //out_buf[out_ind++] = ptr[i];
     }
