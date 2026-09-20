@@ -34,10 +34,25 @@ module LoadStoreUnit
   assign write_data_half_word = {2{cpu_write_data_in[15:0]}};
   assign write_data_byte = {4{cpu_write_data_in[7:0]}};
 
+  ls_type_e req_mem_op_ff;
+  logic [ADDR_WIDTH - 1 : 0] req_addr_ff;
+
+  always_ff @(posedge clk or negedge arstn) begin
+    if (~arstn) begin
+      req_mem_op_ff   <= ls_type_e'('0);
+      req_addr_ff     <= '0;
+    end
+    else begin
+      if (cpu_req_in) begin
+        req_mem_op_ff <= cpu_mem_op_type_in;
+        req_addr_ff   <= cpu_addr_in;
+      end
+    end
+  end
+
   always_comb begin
     mem_req_out = cpu_req_in;
     cpu_ack_out = mem_ack_in;
-    cpu_read_data_out = '0;
     mem_write_data_out = '0;
     mem_write_en_out = 1'b0;
     mem_write_mask_out = 4'b0000;
@@ -64,16 +79,25 @@ module LoadStoreUnit
           2'b11: mem_write_mask_out = 4'b1000;
         endcase
       end
+      default: begin
+      end
+    endcase
+  end
+
+  always_comb begin
+    cpu_read_data_out = '0;
+
+    unique case (req_mem_op_ff)
       LOAD_WORD: begin
         cpu_read_data_out = mem_data_in;
       end
       LOAD_HALFWORD_UNSIGNED: begin
-        cpu_read_data_out = cpu_addr_in[1] ?
+        cpu_read_data_out = req_addr_ff[1] ?
                 {16'b0, mem_data_in[31:16]} :
                 {16'b0, mem_data_in[15:0]};
       end
       LOAD_BYTE_UNSIGNED: begin
-        unique case (cpu_addr_in[1:0])
+        unique case (req_addr_ff[1:0])
           2'b00: cpu_read_data_out = {24'b0, mem_data_in[7:0]};
           2'b01: cpu_read_data_out = {24'b0, mem_data_in[15:8]};
           2'b10: cpu_read_data_out = {24'b0, mem_data_in[23:16]};
@@ -81,12 +105,12 @@ module LoadStoreUnit
         endcase
       end
       LOAD_HALFWORD: begin
-        cpu_read_data_out = cpu_addr_in[1] ?
+        cpu_read_data_out = req_addr_ff[1] ?
                 {{16{mem_data_in[31]}}, mem_data_in[31:16]} :
                 {{16{mem_data_in[15]}}, mem_data_in[15:0]};
       end
       LOAD_BYTE: begin
-        unique case (cpu_addr_in[1:0])
+        unique case (req_addr_ff[1:0])
           2'b00: cpu_read_data_out = {{24{mem_data_in[7]}}, mem_data_in[7:0]};
           2'b01: cpu_read_data_out = {{24{mem_data_in[15]}}, mem_data_in[15:8]};
           2'b10: cpu_read_data_out = {{24{mem_data_in[23]}}, mem_data_in[23:16]};

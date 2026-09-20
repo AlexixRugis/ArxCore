@@ -298,8 +298,8 @@ module ArxCore (
   ls_type_e ex_mem_op_type_out;
 
   ExecStage #(
-      .XLEN(32),
-      .ADDR_WIDTH(32)
+      .XLEN(XLEN),
+      .ADDR_WIDTH(ADDR_WIDTH)
   ) exec_stage (
       .clk  (clk),
       .arstn(arstn),
@@ -350,6 +350,83 @@ module ArxCore (
       .mem_op_type_out(ex_mem_op_type_out)
   );
 
+  // MEMORY QUEUE
+
+  logic                          lsu_req_in;
+  logic                          lsu_ack_out;
+  logic     [ADDR_WIDTH - 1 : 0] lsu_addr_in;
+  ls_type_e                      lsu_mem_op_type_in;
+  logic     [      XLEN - 1 : 0] lsu_write_data_in;
+  logic     [      XLEN - 1 : 0] lsu_read_data_out;
+
+  logic                          mem_mem_req_out;
+  logic                          mem_mem_ack_in;
+
+  logic     [    ADDR_WIDTH-1:0] mem_mem_addr_out;
+  logic     [          XLEN-1:0] mem_mem_write_data_out;
+  logic                          mem_mem_write_en_out;
+  logic     [               3:0] mem_mem_write_mask_out;
+  logic     [          XLEN-1:0] mem_mem_data_in;
+
+  LoadStoreUnit #(
+      .XLEN(XLEN),
+      .ADDR_WIDTH(ADDR_WIDTH)
+  ) load_store_unit_i (
+      .clk  (clk),
+      .arstn(arstn),
+
+      .cpu_req_in(lsu_req_in),
+      .cpu_ack_out(lsu_ack_out),
+      .cpu_addr_in(lsu_addr_in),
+      .cpu_mem_op_type_in(lsu_mem_op_type_in),
+      .cpu_write_data_in(lsu_write_data_in),
+      .cpu_read_data_out(lsu_read_data_out),
+
+      .mem_req_out(mem_mem_req_out),
+      .mem_ack_in(mem_mem_ack_in),
+      .mem_addr_out(mem_mem_addr_out),
+      .mem_write_data_out(mem_mem_write_data_out),
+      .mem_write_en_out(mem_mem_write_en_out),
+      .mem_write_mask_out(mem_mem_write_mask_out),
+      .mem_data_in(mem_mem_data_in)
+  );
+
+  logic                          mem_req_valid;
+  logic                          mem_req_ready;
+  logic     [ADDR_WIDTH - 1 : 0] mem_req_addr;
+  ls_type_e                      mem_req_type;
+  logic     [      XLEN - 1 : 0] mem_req_write_data;
+
+  logic                          mem_resp_valid;
+  logic                          mem_resp_ready;
+  logic     [      XLEN - 1 : 0] mem_resp_data;
+
+  MemReqSplitter #(
+      .XLEN(XLEN),
+      .ADDR_WIDTH(ADDR_WIDTH)
+  ) mem_queue_i (
+      .clk  (clk),
+      .rst_n(arstn),
+
+      .req_valid_i(mem_req_valid),
+      .req_ready_o(mem_req_ready),
+
+      .addr_i(mem_req_addr),
+      .op_type_i(mem_req_type),
+      .write_data_i(mem_req_write_data),
+
+      .resp_valid_o(mem_resp_valid),
+      .resp_ready_i(mem_resp_ready),
+      .read_data_o (mem_resp_data),
+
+      .lsu_req_o(lsu_req_in),
+      .lsu_ack_i(lsu_ack_out),
+      .lsu_addr_o(lsu_addr_in),
+      .lsu_mem_op_type_o(lsu_mem_op_type_in),
+      .lsu_write_data_o(lsu_write_data_in),
+      .lsu_read_data_i(lsu_read_data_out)
+  );
+
   // MEMORY STAGE
 
   logic mem_valid_in;
@@ -380,27 +457,18 @@ module ArxCore (
   logic                  mem_ready_out;
 
   logic                  mem_reg_write_out;
+  logic                  mem_mem_op_out;
   logic                  mem_mem_to_reg_out;
 
   logic [      XLEN-1:0] mem_alu_res_out;
-  logic [      XLEN-1:0] mem_mem_val_out;
 
   logic [           4:0] mem_rd_out;
   logic [ADDR_WIDTH-1:0] mem_pc_out;
   assign dbg_pc_mem = mem_pc_out;
 
-  logic                  mem_mem_req_out;
-  logic                  mem_mem_ack_in;
-
-  logic [ADDR_WIDTH-1:0] mem_mem_addr_out;
-  logic [      XLEN-1:0] mem_mem_write_data_out;
-  logic                  mem_mem_write_en_out;
-  logic [           3:0] mem_mem_write_mask_out;
-  logic [      XLEN-1:0] mem_mem_data_in;
-
   MemStage #(
-      .XLEN(32),
-      .ADDR_WIDTH(32)
+      .XLEN(XLEN),
+      .ADDR_WIDTH(ADDR_WIDTH)
   ) mem_stage (
       .clk  (clk),
       .arstn(arstn),
@@ -424,23 +492,20 @@ module ArxCore (
       .valid_out(mem_valid_out),
       .ready_out(mem_ready_out),
 
-      .reg_write_out (mem_reg_write_out),
+      .reg_write_out(mem_reg_write_out),
+      .mem_op_out(mem_mem_op_out),
       .mem_to_reg_out(mem_mem_to_reg_out),
 
       .alu_res_out(mem_alu_res_out),
-      .mem_val_out(mem_mem_val_out),
 
       .rd_out(mem_rd_out),
       .pc_out(mem_pc_out),
 
-      .mem_req_out(mem_mem_req_out),
-      .mem_ack_in (mem_mem_ack_in),
-
-      .mem_addr_out(mem_mem_addr_out),
-      .mem_write_data_out(mem_mem_write_data_out),
-      .mem_write_en_out(mem_mem_write_en_out),
-      .mem_write_mask_out(mem_mem_write_mask_out),
-      .mem_data_in(mem_mem_data_in)
+      .mem_req_valid_o(mem_req_valid),
+      .mem_req_ready_i(mem_req_ready),
+      .mem_req_addr_o(mem_req_addr),
+      .mem_req_op_type_o(mem_req_type),
+      .mem_req_write_data_o(mem_req_write_data)
   );
 
   // WRITEBACK STAGE
@@ -452,13 +517,13 @@ module ArxCore (
 
   logic wb_reg_write_in;
   assign wb_reg_write_in = mem_reg_write_out;
+  logic wb_mem_op_in;
+  assign wb_mem_op_in = mem_mem_op_out;
   logic wb_mem_to_reg_in;
   assign wb_mem_to_reg_in = mem_mem_to_reg_out;
 
   logic [XLEN-1:0] wb_alu_res_in;
   assign wb_alu_res_in = mem_alu_res_out;
-  logic [XLEN-1:0] wb_mem_val_in;
-  assign wb_mem_val_in = mem_mem_val_out;
 
   logic [4:0] wb_rd_in;
   assign wb_rd_in = mem_rd_out;
@@ -475,27 +540,33 @@ module ArxCore (
   assign dbg_pc_wb = wb_pc_out;
 
   WriteBackStage #(
-      .XLEN(32)
+      .XLEN(XLEN),
+      .ADDR_WIDTH(ADDR_WIDTH)
   ) writeback_stage (
       .clk  (clk),
       .arstn(arstn),
 
-      .valid_in(wb_valid_in),
-      .ready_in(wb_ready_in),
+      .valid_up_i(wb_valid_in),
+      .ready_up_o(wb_ready_in),
 
-      .reg_write_in (wb_reg_write_in),
-      .mem_to_reg_in(wb_mem_to_reg_in),
+      .reg_write_i(wb_reg_write_in),
+      .mem_op_i(wb_mem_op_in),
+      .mem_to_reg_i(wb_mem_to_reg_in),
 
-      .alu_res_in(wb_alu_res_in),
-      .mem_val_in(wb_mem_val_in),
+      .alu_res_i(wb_alu_res_in),
 
-      .rd_in(wb_rd_in),
-      .pc_in(wb_pc_in),
+      .rd_i(wb_rd_in),
+      .pc_i(wb_pc_in),
 
-      .reg_write_out(wb_reg_write_out),
-      .rd_out(wb_rd_out),
-      .res_out(wb_res_out),
-      .pc_out(wb_pc_out)
+      .reg_write_o(wb_reg_write_out),
+      .rd_o(wb_rd_out),
+      .res_o(wb_res_out),
+
+      .mem_resp_valid_i(mem_resp_valid),
+      .mem_resp_ready_o(mem_resp_ready),
+      .mem_resp_read_data_i(mem_resp_data),
+
+      .pc_o(wb_pc_out)
   );
 
   // HALT controls
@@ -503,6 +574,7 @@ module ArxCore (
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
       halt_req_in <= 1'b0;
+      halted <= 1'b0;
     end else begin
       if (halt_req) halt_req_in <= 1'b1;
       else if (resume_req) halt_req_in <= 1'b0;

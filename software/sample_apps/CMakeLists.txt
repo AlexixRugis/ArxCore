@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(sample_apps LANGUAGES C ASM)
+project(sample_app LANGUAGES C ASM)
 
 set(CMAKE_C_COMPILER riscv64-unknown-elf-gcc)
 set(CMAKE_ASM_COMPILER riscv64-unknown-elf-gcc)
@@ -11,9 +11,11 @@ add_subdirectory(
 )
 
 add_executable(${CMAKE_PROJECT_NAME}.elf
-    main.c
+    donut.c
     $<TARGET_OBJECTS:arx_hal>
 )
+
+target_link_libraries(${CMAKE_PROJECT_NAME}.elf m)
 
 target_compile_options(${CMAKE_PROJECT_NAME}.elf PRIVATE ${HAL_FLAGS})
 

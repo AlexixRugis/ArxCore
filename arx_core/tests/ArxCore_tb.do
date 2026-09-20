@@ -13,6 +13,7 @@ vlog -hazards -lint -sv -work work \
 ../../src/RamPort.sv \
 ../../src/RamArbiter2to1.sv \
 ../../src/MemoryInterconnect.sv \
+../../src/ArxToAvalon.sv \
 ../src/include/LoadStoreTypes.sv \
 ../src/include/BranchTypes.sv \
 ../src/include/IALUTypes.sv \
@@ -25,6 +26,7 @@ vlog -hazards -lint -sv -work work \
 ../src/InsnDecodeStage.sv \
 ../src/InsnFetch.sv \
 ../src/LoadStoreUnit.sv \
+../src/MemReqSplitter.sv \
 ../src/MemStage.sv \
 ../src/RegisterFile.sv \
 ../src/WriteBackStage.sv \

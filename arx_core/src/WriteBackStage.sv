@@ -6,54 +6,68 @@ module WriteBackStage #(
     input logic arstn,
 
     // FROM MEM STAGE
-    input  logic valid_in,
-    output logic ready_in,
+    input  logic valid_up_i,
+    output logic ready_up_o,
 
-    input logic reg_write_in,
-    input logic mem_to_reg_in,
+    input logic reg_write_i,
+    input logic mem_op_i,
+    input logic mem_to_reg_i,
 
-    input logic [XLEN-1:0] alu_res_in,
-    input logic [XLEN-1:0] mem_val_in,
+    input logic [XLEN-1:0] alu_res_i,
 
-    input logic [           4:0] rd_in,
-    input logic [ADDR_WIDTH-1:0] pc_in,
+    input logic [           4:0] rd_i,
+    input logic [ADDR_WIDTH-1:0] pc_i,
 
     // -----------
 
     // TO REG FILE
-    output logic            reg_write_out,
-    output logic [     4:0] rd_out,
-    output logic [XLEN-1:0] res_out,
+    output logic            reg_write_o,
+    output logic [     4:0] rd_o,
+    output logic [XLEN-1:0] res_o,
 
     // -----------
-    output logic [ADDR_WIDTH-1:0] pc_out
+
+    // FROM LSU
+    input  logic mem_resp_valid_i,
+    output logic mem_resp_ready_o,
+
+    input logic [XLEN-1:0] mem_resp_read_data_i,
+
+    // -----------
+    output logic [ADDR_WIDTH-1:0] pc_o
 );
 
-  // STAGE REGISTERS
+  logic                  valid_ff;
 
-  logic                  valid_in_internal;
-  logic                  reg_write_in_internal;
-  logic                  mem_to_reg_in_internal;
-  logic [      XLEN-1:0] alu_res_in_internal;
-  logic [      XLEN-1:0] mem_val_in_internal;
-  logic [           4:0] rd_in_internal;
-  logic [ADDR_WIDTH-1:0] pc_in_internal;
+  logic                  reg_we_ff;
+  logic                  mem_op_ff;
+  logic                  mem_to_reg_ff;
+  logic [      XLEN-1:0] alu_res_ff;
+  logic [           4:0] rd_ff;
+  logic [ADDR_WIDTH-1:0] pc_ff;
+
+  // STAGE DATA TRANSFER
+
+  assign ready_up_o = valid_ff && mem_op_ff ? mem_resp_valid_i : 1'b1;
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
-      valid_in_internal <= 1'b0;
+      valid_ff <= 1'b0;
     end else begin
-      if (valid_in) begin
-        valid_in_internal <= 1'b1;
-        reg_write_in_internal <= reg_write_in;
-        mem_to_reg_in_internal <= mem_to_reg_in;
-        alu_res_in_internal <= alu_res_in;
-        mem_val_in_internal <= mem_val_in;
-        rd_in_internal <= rd_in;
-        pc_in_internal <= pc_in;
-      end else begin
-        valid_in_internal <= 1'b0;
+      if (ready_up_o) begin
+        valid_ff <= valid_up_i;
       end
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (ready_up_o) begin
+      reg_we_ff <= reg_write_i;
+      mem_op_ff <= mem_op_i;
+      mem_to_reg_ff <= mem_to_reg_i;
+      alu_res_ff <= alu_res_i;
+      rd_ff <= rd_i;
+      pc_ff <= pc_i;
     end
   end
 
@@ -61,21 +75,20 @@ module WriteBackStage #(
 
   // OUT ASSIGNMENTS
 
-  always_comb begin
-    pc_out = pc_in_internal;
+  assign mem_resp_ready_o = valid_ff && mem_op_ff;
+  assign pc_o             = pc_ff;
 
-    if (valid_in_internal) begin
-      reg_write_out = reg_write_in_internal;
-      rd_out = rd_in_internal;
-      res_out = mem_to_reg_in_internal ? mem_val_in_internal : alu_res_in_internal;
+  always_comb begin
+    if (valid_ff) begin
+      reg_write_o = reg_we_ff && (!mem_op_ff || mem_resp_valid_i);
+      rd_o        = rd_ff;
+      res_o       = mem_to_reg_ff ? mem_resp_read_data_i : alu_res_ff;
     end else begin
-      reg_write_out = 1'b0;
-      rd_out = '0;
-      res_out = '0;
+      reg_write_o = 1'b0;
+      rd_o        = '0;
+      res_o       = '0;
     end
   end
-
-  assign ready_in = 1'b1;
 
   // -----------
 

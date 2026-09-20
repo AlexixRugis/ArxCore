@@ -811,6 +811,7 @@ set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
 set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+set_global_assignment -name SYSTEMVERILOG_FILE arx_core/src/MemReqSplitter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/ArxToAvalon.sv
 set_global_assignment -name QIP_FILE jtag_uart/synthesis/jtag_uart.qip
 set_global_assignment -name SIP_FILE jtag_uart/simulation/jtag_uart.sip

@@ -11,7 +11,7 @@ set(HAL_FLAGS
     -march=${HAL_ARCH}
     -mabi=${HAL_ABI}
     -ffreestanding
-    -O2
+    -O3
 )
 
 add_library(arx_hal OBJECT
