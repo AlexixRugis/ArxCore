@@ -50,57 +50,7 @@ module MemStage
     output logic [ADDR_WIDTH-1:0] mem_req_addr_o,
     output ls_type_e mem_req_op_type_o,
     output logic [XLEN-1:0] mem_req_write_data_o
-
-    // // TO DATA MEM
-    // output logic mem_req_out,
-    // input  logic mem_ack_in,
-
-    // output logic [ADDR_WIDTH-1:0] mem_addr_out,
-    // output logic [      XLEN-1:0] mem_write_data_out,
-    // output logic                  mem_write_en_out,
-    // output logic [           3:0] mem_write_mask_out,
-    // input  logic [      XLEN-1:0] mem_data_in
-    // // -----------
 );
-
-  // // LOAD STORE UNIT
-
-  // // TO CPU
-  // logic                      cpu_req;
-  // logic                      cpu_ack;
-
-  // logic     [ADDR_WIDTH-1:0] cpu_addr;
-  // ls_type_e                  cpu_mem_op_type;
-  // logic     [      XLEN-1:0] cpu_write_data;
-  // logic     [      XLEN-1:0] cpu_read_data;
-  // // -----------
-
-  // LoadStoreUnit #(
-  //     .ADDR_WIDTH(ADDR_WIDTH),
-  //     .XLEN(XLEN)
-  // ) lsu (
-  //     .clk  (clk),
-  //     .arstn(arstn),
-
-  //     .cpu_req_in (cpu_req),
-  //     .cpu_ack_out(cpu_ack),
-
-  //     .cpu_addr_in(cpu_addr),
-  //     .cpu_mem_op_type_in(cpu_mem_op_type),
-  //     .cpu_write_data_in(cpu_write_data),
-  //     .cpu_read_data_out(cpu_read_data),
-
-  //     .mem_req_out(mem_req_out),
-  //     .mem_ack_in (mem_ack_in),
-
-  //     .mem_addr_out(mem_addr_out),
-  //     .mem_write_data_out(mem_write_data_out),
-  //     .mem_write_en_out(mem_write_en_out),
-  //     .mem_write_mask_out(mem_write_mask_out),
-  //     .mem_data_in(mem_data_in)
-  // );
-
-  // // -----------
 
   // STAGE REGISTERS
 
