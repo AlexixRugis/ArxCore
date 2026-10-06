@@ -43,44 +43,39 @@ module MemStage
     // -----------
 
     // TO LSU
-    output logic mem_req_valid_o,
-    input  logic mem_req_ready_i,
-
-    output logic [ADDR_WIDTH-1:0] mem_req_addr_o,
-    output ls_type_e mem_req_op_type_o,
-    output logic [XLEN-1:0] mem_req_write_data_o
+    mem_req_if.master mem_req
 );
 
   // STAGE REGISTERS
 
-  logic                      valid_in_internal;
+  logic                      valid_ff;
 
-  logic     [ADDR_WIDTH-1:0] pc_in_internal;
+  logic     [ADDR_WIDTH-1:0] pc_ff;
 
-  logic     [      XLEN-1:0] alu_in_internal;
-  logic     [      XLEN-1:0] rs2_in_internal;
-  logic     [           4:0] rd_in_internal;
+  logic     [      XLEN-1:0] alu_res_ff;
+  logic     [      XLEN-1:0] rs2_ff;
+  logic     [           4:0] rd_ff;
 
-  wb_type_e                  wb_type_internal;
-  logic                      mem_op_internal;
+  wb_type_e                  wb_type_ff;
+  logic                      mem_op_ff;
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
-      valid_in_internal <= 1'b0;
+      valid_ff <= 1'b0;
     end else begin
       if (valid_in & ready_in) begin
-        valid_in_internal <= 1'b1;
+        valid_ff <= 1'b1;
 
-        pc_in_internal <= pc_in;
+        pc_ff <= pc_in;
 
-        alu_in_internal <= alu_in;
-        rs2_in_internal <= rs2_in;
-        rd_in_internal <= rd_in;
+        alu_res_ff <= alu_in;
+        rs2_ff <= rs2_in;
+        rd_ff <= rd_in;
 
-        wb_type_internal <= wb_type_in;
-        mem_op_internal <= mem_op_in;
+        wb_type_ff <= wb_type_in;
+        mem_op_ff <= mem_op_in;
       end else if (valid_out & ready_out) begin
-        valid_in_internal <= 1'b0;
+        valid_ff <= 1'b0;
       end
     end
   end
@@ -94,7 +89,7 @@ module MemStage
 
   ls_type_e mem_op_type_in_ff;
 
-  assign mem_req_vld_next = mem_req_vld_ff && !mem_req_ready_i;
+  assign mem_req_vld_next = mem_req_vld_ff && !mem_req.ready;
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
@@ -115,10 +110,10 @@ module MemStage
   end
 
   always_comb begin
-    mem_req_valid_o = mem_req_vld_ff;
-    mem_req_addr_o = alu_in_internal;
-    mem_req_op_type_o = mem_op_type_in_ff;
-    mem_req_write_data_o = rs2_in_internal;
+    mem_req.valid = mem_req_vld_ff;
+    mem_req.addr = alu_res_ff;
+    mem_req.op = mem_op_type_in_ff;
+    mem_req.write_data = rs2_ff;
   end
 
   // -----------
@@ -126,19 +121,19 @@ module MemStage
   // OUT ASSIGNMENTS
 
   always_comb begin
-    halt_ack_out = halt_req_in && (!mem_req_vld_ff || !valid_in_internal);
+    halt_ack_out = halt_req_in && (!mem_req_vld_ff || !valid_ff);
 
-    wb_type_out = wb_type_internal;
-    mem_op_out = mem_op_internal;
-    alu_res_out = alu_in_internal;
-    rd_out = rd_in_internal;
-    pc_out = pc_in_internal;
+    wb_type_out = wb_type_ff;
+    mem_op_out = mem_op_ff;
+    alu_res_out = alu_res_ff;
+    rd_out = rd_ff;
+    pc_out = pc_ff;
   end
 
   always_comb begin
     if (~halt_req_in) begin
-      valid_out = valid_in_internal && !mem_req_vld_next;
-      ready_in  = ~valid_in_internal | (valid_out & ready_out);
+      valid_out = valid_ff && !mem_req_vld_next;
+      ready_in  = ~valid_ff | (valid_out & ready_out);
     end else begin
       valid_out = 1'b0;
       ready_in  = 1'b0;

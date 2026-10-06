@@ -402,15 +402,12 @@ module ArxCore (
       .mem_data_in(mem_mem_data_in)
   );
 
-  logic                          mem_req_valid;
-  logic                          mem_req_ready;
-  logic     [ADDR_WIDTH - 1 : 0] mem_req_addr;
-  ls_type_e                      mem_req_type;
-  logic     [      XLEN - 1 : 0] mem_req_write_data;
+  mem_req_if #(
+      .ADDR_WIDTH(ADDR_WIDTH),
+      .XLEN(XLEN)
+  ) i_data_mem_req ();
 
-  logic                          mem_resp_valid;
-  logic                          mem_resp_ready;
-  logic     [      XLEN - 1 : 0] mem_resp_data;
+  mem_resp_if #(.XLEN(XLEN)) i_data_mem_resp ();
 
   MemReqSplitter #(
       .XLEN(XLEN),
@@ -419,16 +416,8 @@ module ArxCore (
       .clk  (clk),
       .rst_n(arstn),
 
-      .req_valid_i(mem_req_valid),
-      .req_ready_o(mem_req_ready),
-
-      .addr_i(mem_req_addr),
-      .op_type_i(mem_req_type),
-      .write_data_i(mem_req_write_data),
-
-      .resp_valid_o(mem_resp_valid),
-      .resp_ready_i(mem_resp_ready),
-      .read_data_o (mem_resp_data),
+      .req (i_data_mem_req),
+      .resp(i_data_mem_resp),
 
       .lsu_req_o(lsu_req_in),
       .lsu_ack_i(lsu_ack_out),
@@ -507,11 +496,7 @@ module ArxCore (
       .rd_out(mem_rd_out),
       .pc_out(mem_pc_out),
 
-      .mem_req_valid_o(mem_req_valid),
-      .mem_req_ready_i(mem_req_ready),
-      .mem_req_addr_o(mem_req_addr),
-      .mem_req_op_type_o(mem_req_type),
-      .mem_req_write_data_o(mem_req_write_data)
+      .mem_req(i_data_mem_req)
   );
 
   // WRITEBACK STAGE
@@ -565,9 +550,7 @@ module ArxCore (
       .rd_o(wb_rd_out),
       .res_o(wb_res_out),
 
-      .mem_resp_valid_i(mem_resp_valid),
-      .mem_resp_ready_o(mem_resp_ready),
-      .mem_resp_read_data_i(mem_resp_data),
+      .mem_resp(i_data_mem_resp),
 
       .pc_o(wb_pc_out)
   );

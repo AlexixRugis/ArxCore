@@ -8,19 +8,11 @@ module MemReqSplitter
     input logic rst_n,
 
     // FROM MEM STAGE
-    input  logic req_valid_i,
-    output logic req_ready_o,
-
-    input logic [ADDR_WIDTH-1:0] addr_i,
-    input ls_type_e op_type_i,
-    input logic [XLEN-1:0] write_data_i,
+    mem_req_if.slave req,
     // -----------
 
     // TO WB STAGE
-    output logic resp_valid_o,
-    input  logic resp_ready_i,
-
-    output logic [XLEN-1:0] read_data_o,
+    mem_resp_if.master resp,
     // -----------
 
     // TO LSU
@@ -49,11 +41,11 @@ module MemReqSplitter
 
   // REQUEST LOGIC BEGIN
 
-  assign in_handshake      = req_valid_i && req_ready_o;
+  assign in_handshake      = req.valid && req.ready;
 
-  assign lsu_addr_o        = in_handshake ? addr_i : req_addr_ff;
-  assign lsu_mem_op_type_o = in_handshake ? op_type_i : req_op_type_ff;
-  assign lsu_write_data_o  = in_handshake ? write_data_i : req_write_data_ff;
+  assign lsu_addr_o        = in_handshake ? req.addr : req_addr_ff;
+  assign lsu_mem_op_type_o = in_handshake ? req.op : req_op_type_ff;
+  assign lsu_write_data_o  = in_handshake ? req.write_data : req_write_data_ff;
 
   assign req_vld_next      = in_handshake || (req_vld_ff && !lsu_ack_i);
 
@@ -67,20 +59,20 @@ module MemReqSplitter
 
   always_ff @(posedge clk) begin
     if (in_handshake) begin
-      req_addr_ff <= addr_i;
-      req_op_type_ff <= op_type_i;
-      req_write_data_ff <= write_data_i;
+      req_addr_ff <= req.addr;
+      req_op_type_ff <= req.op;
+      req_write_data_ff <= req.write_data;
     end
   end
 
-  assign req_ready_o = (!req_vld_ff || lsu_ack_i) && ~out_buffer_vld_next;
+  assign req.ready = (!req_vld_ff || lsu_ack_i) && ~out_buffer_vld_next;
   assign lsu_req_o = req_vld_next;
 
   // REQUEST LOGIC END
 
   // RESPONSE LOGIC BEGIN
 
-  assign out_handshake = resp_valid_o && resp_ready_i;
+  assign out_handshake = resp.valid && resp.ready;
 
   assign out_buffer_vld_next = !out_handshake && (lsu_ack_i || out_buffer_vld_ff);
 
@@ -98,8 +90,8 @@ module MemReqSplitter
     end
   end
 
-  assign resp_valid_o = out_buffer_vld_ff || lsu_ack_i;
-  assign read_data_o  = out_buffer_vld_ff ? out_buffer_ff : lsu_read_data_i;
+  assign resp.valid = out_buffer_vld_ff || lsu_ack_i;
+  assign resp.data  = out_buffer_vld_ff ? out_buffer_ff : lsu_read_data_i;
 
   // RESPONSE LOGIC END
 

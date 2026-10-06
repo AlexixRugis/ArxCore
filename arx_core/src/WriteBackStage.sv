@@ -29,12 +29,9 @@ module WriteBackStage
     // -----------
 
     // FROM LSU
-    input  logic mem_resp_valid_i,
-    output logic mem_resp_ready_o,
-
-    input logic [XLEN-1:0] mem_resp_read_data_i,
-
+    mem_resp_if.slave mem_resp,
     // -----------
+
     output logic [ADDR_WIDTH-1:0] pc_o
 );
 
@@ -48,7 +45,7 @@ module WriteBackStage
 
   // STAGE DATA TRANSFER
 
-  assign ready_up_o = valid_ff && mem_op_ff ? mem_resp_valid_i : 1'b1;
+  assign ready_up_o = valid_ff && mem_op_ff ? mem_resp.valid : 1'b1;
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
@@ -74,14 +71,14 @@ module WriteBackStage
 
   // OUT ASSIGNMENTS
 
-  assign mem_resp_ready_o = valid_ff && mem_op_ff;
+  assign mem_resp.ready = valid_ff && mem_op_ff;
   assign pc_o             = pc_ff;
 
   always_comb begin
     if (valid_ff) begin
-      reg_write_o = (wb_type_ff != WB_NONE) && (!mem_op_ff || mem_resp_valid_i);
+      reg_write_o = (wb_type_ff != WB_NONE) && (!mem_op_ff || mem_resp.valid);
       rd_o        = rd_ff;
-      res_o       = (wb_type_ff == WB_MEM_RES) ? mem_resp_read_data_i : alu_res_ff;
+      res_o       = (wb_type_ff == WB_MEM_RES) ? mem_resp.data : alu_res_ff;
     end else begin
       reg_write_o = 1'b0;
       rd_o        = '0;
