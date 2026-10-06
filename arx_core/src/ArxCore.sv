@@ -1,6 +1,7 @@
 import IALUTypes::*;
 import LoadStoreTypes::*;
 import BranchTypes::*;
+import InstrTypes::*;
 
 module ArxCore (
     input clk,
@@ -40,6 +41,8 @@ module ArxCore (
     output logic [31:0] dbg_x5,
     output logic [31:0] dbg_x6,
     output logic [31:0] dbg_x7,
+    output logic [31:0] dbg_x8,
+    output logic [31:0] dbg_x9,
     output logic [31:0] dbg_x10,
     output logic [31:0] dbg_x11,
     output logic [31:0] dbg_x12,
@@ -59,6 +62,7 @@ module ArxCore (
   localparam int unsigned XLEN = 32;
   localparam int unsigned ADDR_WIDTH = 32;
   localparam int unsigned INSN_WIDTH = 32;
+  localparam int unsigned EPOCH_WIDTH = 3;
 
   logic halt_req_in;
   logic halt_ack_out_fs;
@@ -71,13 +75,15 @@ module ArxCore (
 
   // FETCH STAGE
 
-  logic [31:0] fs_pc_in;
-  logic        fs_pc_we_in;
+  logic [           31:0] fs_pc_in;
+  logic                   fs_pc_we_in;
 
-  logic        fs_valid_out;
-  logic        fs_ready_out;
+  logic                   fs_valid_out;
+  logic                   fs_ready_out;
 
-  logic [31:0] fs_pc_out;
+  logic [EPOCH_WIDTH-1:0] fs_epoch_out;
+
+  logic [           31:0] fs_pc_out;
   assign dbg_pc_fs = fs_pc_out;
   logic [31:0] fs_insn_out;
 
@@ -109,7 +115,8 @@ module ArxCore (
       .valid_out(fs_valid_out),
       .ready_out(fs_ready_out),
 
-      .pc_out  (fs_pc_out),
+      .epoch_out(fs_epoch_out),
+      .pc_out(fs_pc_out),
       .insn_out(fs_insn_out)
       // -----------------
   );
@@ -123,43 +130,47 @@ module ArxCore (
   logic id_ready_in;
   assign fs_ready_out = id_ready_in;
 
+  logic [EPOCH_WIDTH-1:0] id_epoch_in;
+  assign id_epoch_in = fs_epoch_out;
+
   logic [ADDR_WIDTH-1:0] id_pc_in;
   assign id_pc_in = fs_pc_out;
   logic [INSN_WIDTH-1:0] id_insn_in;
   assign id_insn_in = fs_insn_out;
 
-  logic                  id_valid_out;
-  logic                  id_ready_out;
+  logic                   id_valid_out;
+  logic                   id_ready_out;
 
-  logic [      XLEN-1:0] id_rs1_out;
-  logic [      XLEN-1:0] id_rs2_out;
-  logic [      XLEN-1:0] id_imm_out;
+  logic [EPOCH_WIDTH-1:0] id_epoch_out;
 
-  logic [           4:0] id_rd_out;
-  logic [ADDR_WIDTH-1:0] id_pc_out;
+  logic [       XLEN-1:0] id_rs1_out;
+  logic [       XLEN-1:0] id_rs2_out;
+  logic [       XLEN-1:0] id_imm_out;
+
+  logic [            4:0] id_rd_out;
+  logic [ ADDR_WIDTH-1:0] id_pc_out;
   assign dbg_pc_id = id_pc_out;
   branch_type_e            id_pc_addr_type_out;
   logic                    id_pc_jump_en_out;
 
-  logic                    id_reg_write_out;
-  logic                    id_mem_to_reg_out;
+  wb_type_e                id_wb_type_out;
   logic                    id_mem_op_out;
   ls_type_e                id_mem_op_type_out;
 
+  logic                    id_alu_en_out;
   alu_op_e                 id_alu_op_out;
-  alu_src1_e               id_alu_src_1_out;
-  alu_src2_e               id_alu_src_2_out;
-
+  logic                    id_mdu_en_out;
   mdu_op_e                 id_mdu_op_out;
 
-  logic                    id_alu_en_out;
-  logic                    id_mdu_en_out;
+  alu_src1_e               id_arg_src_1_out;
+  alu_src2_e               id_arg_src_2_out;
 
   logic         [     4:0] id_rd_in;
   logic         [XLEN-1:0] id_rd_val_in;
   logic                    id_rd_we_in;
 
   logic         [     2:0] id_dbg_used_regs_out[32];
+  logic         [XLEN-1:0] id_dbg_x            [18];
 
   InsnDecodeStage #(
       .INSN_WIDTH(INSN_WIDTH),
@@ -169,65 +180,70 @@ module ArxCore (
       .clk  (clk),
       .arstn(arstn),
 
-      .halt_req_in (halt_req_in),
-      .halt_ack_out(halt_ack_out_id),
+      .halt_req_i(halt_req_in),
+      .halt_ack_o(halt_ack_out_id),
 
-      .flush_in(id_flush_in),
+      .flush_i(id_flush_in),
 
-      .valid_in(id_valid_in),
-      .ready_in(id_ready_in),
+      .valid_i(id_valid_in),
+      .ready_i(id_ready_in),
 
-      .pc_in  (id_pc_in),
-      .insn_in(id_insn_in),
+      .epoch_i(id_epoch_in),
+      .pc_i(id_pc_in),
+      .insn_i(id_insn_in),
 
-      .valid_out(id_valid_out),
-      .ready_out(id_ready_out),
+      .valid_o(id_valid_out),
+      .ready_o(id_ready_out),
 
-      .rs1_out(id_rs1_out),
-      .rs2_out(id_rs2_out),
-      .imm_out(id_imm_out),
+      .epoch_o(id_epoch_out),
 
-      .rd_out(id_rd_out),
-      .pc_out(id_pc_out),
-      .pc_addr_type_out(id_pc_addr_type_out),
-      .pc_jump_en_out(id_pc_jump_en_out),
+      .rs1_o(id_rs1_out),
+      .rs2_o(id_rs2_out),
+      .imm_o(id_imm_out),
 
-      .reg_write_out(id_reg_write_out),
-      .mem_to_reg_out(id_mem_to_reg_out),
-      .mem_op_out(id_mem_op_out),
-      .mem_op_type_out(id_mem_op_type_out),
+      .rd_o(id_rd_out),
+      .pc_o(id_pc_out),
+      .pc_addr_type_o(id_pc_addr_type_out),
+      .pc_jump_en_o(id_pc_jump_en_out),
 
-      .alu_op_out(id_alu_op_out),
-      .alu_src_1_out(id_alu_src_1_out),
-      .alu_src_2_out(id_alu_src_2_out),
+      .wb_type_o(id_wb_type_out),
+      .mem_op_o(id_mem_op_out),
+      .mem_op_type_o(id_mem_op_type_out),
 
-      .mdu_op_out(id_mdu_op_out),
+      .alu_en_o(id_alu_en_out),
+      .alu_op_o(id_alu_op_out),
+      .mdu_en_o(id_mdu_en_out),
+      .mdu_op_o(id_mdu_op_out),
 
-      .alu_en_out(id_alu_en_out),
-      .mdu_en_out(id_mdu_en_out),
+      .arg_src_1_o(id_arg_src_1_out),
+      .arg_src_2_o(id_arg_src_2_out),
 
-      .rd_in(id_rd_in),
-      .rd_val_in(id_rd_val_in),
-      .rd_we_in(id_rd_we_in),
+      .rd_i(id_rd_in),
+      .rd_val_i(id_rd_val_in),
+      .rd_we_i(id_rd_we_in),
 
-      .dbg_used_regs_out(id_dbg_used_regs_out),
-      .dbg_x0(dbg_x0),
-      .dbg_x1(dbg_x1),
-      .dbg_x2(dbg_x2),
-      .dbg_x3(dbg_x3),
-      .dbg_x4(dbg_x4),
-      .dbg_x5(dbg_x5),
-      .dbg_x6(dbg_x6),
-      .dbg_x7(dbg_x7),
-      .dbg_x10(dbg_x10),
-      .dbg_x11(dbg_x11),
-      .dbg_x12(dbg_x12),
-      .dbg_x13(dbg_x13),
-      .dbg_x14(dbg_x14),
-      .dbg_x15(dbg_x15),
-      .dbg_x16(dbg_x16),
-      .dbg_x17(dbg_x17)
+      .dbg_used_regs_o(id_dbg_used_regs_out),
+      .dbg_x_o(id_dbg_x)
   );
+
+  assign dbg_x0  = id_dbg_x[0];
+  assign dbg_x1  = id_dbg_x[1];
+  assign dbg_x2  = id_dbg_x[2];
+  assign dbg_x3  = id_dbg_x[3];
+  assign dbg_x4  = id_dbg_x[4];
+  assign dbg_x5  = id_dbg_x[5];
+  assign dbg_x6  = id_dbg_x[6];
+  assign dbg_x7  = id_dbg_x[7];
+  assign dbg_x8  = id_dbg_x[8];
+  assign dbg_x9  = id_dbg_x[9];
+  assign dbg_x10 = id_dbg_x[10];
+  assign dbg_x11 = id_dbg_x[11];
+  assign dbg_x12 = id_dbg_x[12];
+  assign dbg_x13 = id_dbg_x[13];
+  assign dbg_x14 = id_dbg_x[14];
+  assign dbg_x15 = id_dbg_x[15];
+  assign dbg_x16 = id_dbg_x[16];
+  assign dbg_x17 = id_dbg_x[17];
 
   // EXECUTE STAGE
 
@@ -252,29 +268,27 @@ module ArxCore (
   logic ex_pc_jump_en_in;
   assign ex_pc_jump_en_in = id_pc_jump_en_out;
 
-  logic ex_reg_write_in;
-  assign ex_reg_write_in = id_reg_write_out;
-  logic ex_mem_to_reg_in;
-  assign ex_mem_to_reg_in = id_mem_to_reg_out;
+  wb_type_e ex_wb_type_in;
+  assign ex_wb_type_in = id_wb_type_out;
   logic ex_mem_op_in;
   assign ex_mem_op_in = id_mem_op_out;
   ls_type_e ex_mem_op_type_in;
   assign ex_mem_op_type_in = id_mem_op_type_out;
 
-  logic [IALU_OP_WIDTH-1:0] ex_alu_op_in;
+  logic ex_alu_en_in;
+  assign ex_alu_en_in = id_alu_en_out;
+  alu_op_e ex_alu_op_in;
   assign ex_alu_op_in = id_alu_op_out;
-  alu_src1_e ex_alu_src_1_in;
-  assign ex_alu_src_1_in = id_alu_src_1_out;
-  alu_src2_e ex_alu_src_2_in;
-  assign ex_alu_src_2_in = id_alu_src_2_out;
 
+  logic ex_mdu_en_in;
+  assign ex_mdu_en_in = id_mdu_en_out;
   mdu_op_e ex_mdu_op_in;
   assign ex_mdu_op_in = id_mdu_op_out;
 
-  logic ex_alu_en_in;
-  assign ex_alu_en_in = id_alu_en_out;
-  logic ex_mdu_en_in;
-  assign ex_mdu_en_in = id_mdu_en_out;
+  alu_src1_e ex_arg_src_1_in;
+  assign ex_arg_src_1_in = id_arg_src_1_out;
+  alu_src2_e ex_arg_src_2_in;
+  assign ex_arg_src_2_in = id_arg_src_2_out;
 
   logic                  ex_valid_out;
   logic                  ex_ready_out;
@@ -292,8 +306,7 @@ module ArxCore (
   assign fs_pc_we_in = ex_pc_we_out;
   assign id_flush_in = ex_pc_we_out;
 
-  logic     ex_reg_write_out;
-  logic     ex_mem_to_reg_out;
+  wb_type_e ex_wb_type_out;
   logic     ex_mem_op_out;
   ls_type_e ex_mem_op_type_out;
 
@@ -319,14 +332,13 @@ module ArxCore (
       .pc_branch_type_in(ex_pc_branch_type_in),
       .pc_jump_en_in(ex_pc_jump_en_in),
 
-      .reg_write_in(ex_reg_write_in),
-      .mem_to_reg_in(ex_mem_to_reg_in),
+      .wb_type_in(ex_wb_type_in),
       .mem_op_in(ex_mem_op_in),
       .mem_op_type_in(ex_mem_op_type_in),
 
       .alu_op_in(ex_alu_op_in),
-      .alu_src_1_in(ex_alu_src_1_in),
-      .alu_src_2_in(ex_alu_src_2_in),
+      .alu_src_1_in(ex_arg_src_1_in),
+      .alu_src_2_in(ex_arg_src_2_in),
 
       .mdu_op_in(ex_mdu_op_in),
 
@@ -344,8 +356,7 @@ module ArxCore (
       .pc_branch_out(ex_pc_branch_out),
       .pc_we_out(ex_pc_we_out),
 
-      .reg_write_out(ex_reg_write_out),
-      .mem_to_reg_out(ex_mem_to_reg_out),
+      .wb_type_out(ex_wb_type_out),
       .mem_op_out(ex_mem_op_out),
       .mem_op_type_out(ex_mem_op_type_out)
   );
@@ -443,27 +454,24 @@ module ArxCore (
   logic [ADDR_WIDTH-1:0] mem_pc_in;
   assign mem_pc_in = ex_pc_out;
 
-  logic mem_reg_write_in;
-  assign mem_reg_write_in = ex_reg_write_out;
-  logic mem_mem_to_reg_in;
-  assign mem_mem_to_reg_in = ex_mem_to_reg_out;
+  wb_type_e mem_wb_type_in;
+  assign mem_wb_type_in = ex_wb_type_out;
   logic mem_mem_op_in;
   assign mem_mem_op_in = ex_mem_op_out;
   ls_type_e mem_mem_op_type_in;
   assign mem_mem_op_type_in = ex_mem_op_type_out;
 
 
-  logic                  mem_valid_out;
-  logic                  mem_ready_out;
+  logic                      mem_valid_out;
+  logic                      mem_ready_out;
 
-  logic                  mem_reg_write_out;
-  logic                  mem_mem_op_out;
-  logic                  mem_mem_to_reg_out;
+  wb_type_e                  mem_wb_type_out;
+  logic                      mem_mem_op_out;
 
-  logic [      XLEN-1:0] mem_alu_res_out;
+  logic     [      XLEN-1:0] mem_alu_res_out;
 
-  logic [           4:0] mem_rd_out;
-  logic [ADDR_WIDTH-1:0] mem_pc_out;
+  logic     [           4:0] mem_rd_out;
+  logic     [ADDR_WIDTH-1:0] mem_pc_out;
   assign dbg_pc_mem = mem_pc_out;
 
   MemStage #(
@@ -484,17 +492,15 @@ module ArxCore (
       .rd_in (mem_rd_in),
       .pc_in (mem_pc_in),
 
-      .reg_write_in(mem_reg_write_in),
-      .mem_to_reg_in(mem_mem_to_reg_in),
+      .wb_type_in(mem_wb_type_in),
       .mem_op_in(mem_mem_op_in),
       .mem_op_type_in(mem_mem_op_type_in),
 
       .valid_out(mem_valid_out),
       .ready_out(mem_ready_out),
 
-      .reg_write_out(mem_reg_write_out),
-      .mem_op_out(mem_mem_op_out),
-      .mem_to_reg_out(mem_mem_to_reg_out),
+      .wb_type_out(mem_wb_type_out),
+      .mem_op_out (mem_mem_op_out),
 
       .alu_res_out(mem_alu_res_out),
 
@@ -515,12 +521,10 @@ module ArxCore (
   logic wb_ready_in;
   assign mem_ready_out = wb_ready_in;
 
-  logic wb_reg_write_in;
-  assign wb_reg_write_in = mem_reg_write_out;
+  wb_type_e wb_wb_type_in;
+  assign wb_wb_type_in = mem_wb_type_out;
   logic wb_mem_op_in;
   assign wb_mem_op_in = mem_mem_op_out;
-  logic wb_mem_to_reg_in;
-  assign wb_mem_to_reg_in = mem_mem_to_reg_out;
 
   logic [XLEN-1:0] wb_alu_res_in;
   assign wb_alu_res_in = mem_alu_res_out;
@@ -549,9 +553,8 @@ module ArxCore (
       .valid_up_i(wb_valid_in),
       .ready_up_o(wb_ready_in),
 
-      .reg_write_i(wb_reg_write_in),
-      .mem_op_i(wb_mem_op_in),
-      .mem_to_reg_i(wb_mem_to_reg_in),
+      .wb_type_i(wb_wb_type_in),
+      .mem_op_i (wb_mem_op_in),
 
       .alu_res_i(wb_alu_res_in),
 

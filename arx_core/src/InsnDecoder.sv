@@ -1,32 +1,19 @@
-module InsnDecoder (
-    input logic [31:0] insn,
-
-    output logic [6:0] opcode,
-    output logic [4:0] rs_1,
-    output logic [4:0] rs_2,
-    output logic [4:0] rd,
-
-    output logic [2:0] funct_3,
-    output logic [6:0] funct_7,
-
-    output logic [31:0] imm_i,
-    output logic [31:0] imm_s,
-    output logic [31:0] imm_b,
-    output logic [31:0] imm_u,
-    output logic [31:0] imm_j
+module InsnDecoder
+  import InstrTypes::*;
+(
+    input logic [31:0] insn_i,
+    output instr_fields_t fields_o
 );
+  assign fields_o.opcode  = insn_i[6:0];
+  assign fields_o.rs_1    = insn_i[19:15];
+  assign fields_o.rs_2    = insn_i[24:20];
+  assign fields_o.rd      = insn_i[11:7];
+  assign fields_o.funct_3 = insn_i[14:12];
+  assign fields_o.funct_7 = insn_i[31:25];
 
-  assign opcode  = insn[6:0];
-  assign rs_1    = insn[19:15];
-  assign rs_2    = insn[24:20];
-  assign rd      = insn[11:7];
-  assign funct_3 = insn[14:12];
-  assign funct_7 = insn[31:25];
-
-  assign imm_i   = {{21{insn[31]}}, insn[30:20]};
-  assign imm_s   = {{21{insn[31]}}, insn[30:25], insn[11:7]};
-  assign imm_b   = {{20{insn[31]}}, insn[7], insn[30:25], insn[11:8], 1'b0};
-  assign imm_u   = {insn[31:12], 12'b0};
-  assign imm_j   = {{12{insn[31]}}, insn[19:12], insn[20], insn[30:21], 1'b0};
-
+  assign fields_o.imm_i   = {{21{insn_i[31]}}, insn_i[30:20]};
+  assign fields_o.imm_s   = {{21{insn_i[31]}}, insn_i[30:25], insn_i[11:7]};
+  assign fields_o.imm_b   = {{20{insn_i[31]}}, insn_i[7], insn_i[30:25], insn_i[11:8], 1'b0};
+  assign fields_o.imm_u   = {insn_i[31:12], 12'b0};
+  assign fields_o.imm_j   = {{12{insn_i[31]}}, insn_i[19:12], insn_i[20], insn_i[30:21], 1'b0};
 endmodule

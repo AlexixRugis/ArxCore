@@ -1,5 +1,6 @@
 module MemStage
   import LoadStoreTypes::*;
+  import InstrTypes::*;
 #(
     parameter int unsigned XLEN = 32,
     parameter int unsigned ADDR_WIDTH = 32
@@ -22,8 +23,7 @@ module MemStage
 
     input logic [ADDR_WIDTH-1:0] pc_in,
 
-    input logic     reg_write_in,
-    input logic     mem_to_reg_in,
+    input wb_type_e wb_type_in,
     input logic     mem_op_in,
     input ls_type_e mem_op_type_in,
 
@@ -33,9 +33,8 @@ module MemStage
     output logic valid_out,
     input  logic ready_out,
 
-    output logic reg_write_out,
+    output wb_type_e wb_type_out,
     output logic mem_op_out,
-    output logic mem_to_reg_out,
 
     output logic [XLEN-1:0] alu_res_out,
 
@@ -54,17 +53,16 @@ module MemStage
 
   // STAGE REGISTERS
 
-  logic                  valid_in_internal;
+  logic                      valid_in_internal;
 
-  logic [ADDR_WIDTH-1:0] pc_in_internal;
+  logic     [ADDR_WIDTH-1:0] pc_in_internal;
 
-  logic [      XLEN-1:0] alu_in_internal;
-  logic [      XLEN-1:0] rs2_in_internal;
-  logic [           4:0] rd_in_internal;
+  logic     [      XLEN-1:0] alu_in_internal;
+  logic     [      XLEN-1:0] rs2_in_internal;
+  logic     [           4:0] rd_in_internal;
 
-  logic                  reg_write_in_internal;
-  logic                  mem_op_internal;
-  logic                  mem_to_reg_in_internal;
+  wb_type_e                  wb_type_internal;
+  logic                      mem_op_internal;
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
@@ -79,9 +77,8 @@ module MemStage
         rs2_in_internal <= rs2_in;
         rd_in_internal <= rd_in;
 
-        reg_write_in_internal <= reg_write_in;
+        wb_type_internal <= wb_type_in;
         mem_op_internal <= mem_op_in;
-        mem_to_reg_in_internal <= mem_to_reg_in;
       end else if (valid_out & ready_out) begin
         valid_in_internal <= 1'b0;
       end
@@ -131,9 +128,8 @@ module MemStage
   always_comb begin
     halt_ack_out = halt_req_in && (!mem_req_vld_ff || !valid_in_internal);
 
-    reg_write_out = reg_write_in_internal;
+    wb_type_out = wb_type_internal;
     mem_op_out = mem_op_internal;
-    mem_to_reg_out = mem_to_reg_in_internal;
     alu_res_out = alu_in_internal;
     rd_out = rd_in_internal;
     pc_out = pc_in_internal;

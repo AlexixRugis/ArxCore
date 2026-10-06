@@ -1,6 +1,7 @@
 ./Calc2/arx_core/src/include/BranchTypes.sv
 ./include/IALUTypes.sv
 ./include/LoadStoreTypes.sv
+./include/InstrTypes.sv
 ./ExecStage.sv
 ./InsnDecoder.sv
 ./InsnDecodeStage.sv

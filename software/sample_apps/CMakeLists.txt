@@ -11,7 +11,7 @@ add_subdirectory(
 )
 
 add_executable(${CMAKE_PROJECT_NAME}.elf
-    donut.c
+    main.c
     $<TARGET_OBJECTS:arx_hal>
 )
 

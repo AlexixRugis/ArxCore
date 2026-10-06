@@ -1,6 +1,7 @@
 module InsnFetch #(
     parameter int unsigned ADDR_WIDTH = 32,
-    parameter int unsigned INSN_WIDTH = 32
+    parameter int unsigned INSN_WIDTH = 32,
+    parameter int unsigned EPOCH_WIDTH = 3
 ) (
     input clk,
     input arstn,
@@ -26,6 +27,7 @@ module InsnFetch #(
     output logic valid_out,
     input  logic ready_out,
 
+    output logic [EPOCH_WIDTH-1:0] epoch_out,
     output logic [ADDR_WIDTH-1:0] pc_out,
     output logic [INSN_WIDTH-1:0] insn_out
     // -----------------
@@ -217,5 +219,7 @@ module InsnFetch #(
       end
     end
   end
+
+  assign epoch_out = '0;
 
 endmodule

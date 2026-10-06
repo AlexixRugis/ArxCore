@@ -1,4 +1,6 @@
-module WriteBackStage #(
+module WriteBackStage
+  import InstrTypes::*;
+#(
     parameter int unsigned XLEN = 32,
     parameter int unsigned ADDR_WIDTH = 32
 ) (
@@ -9,9 +11,8 @@ module WriteBackStage #(
     input  logic valid_up_i,
     output logic ready_up_o,
 
-    input logic reg_write_i,
+    input wb_type_e wb_type_i,
     input logic mem_op_i,
-    input logic mem_to_reg_i,
 
     input logic [XLEN-1:0] alu_res_i,
 
@@ -37,14 +38,13 @@ module WriteBackStage #(
     output logic [ADDR_WIDTH-1:0] pc_o
 );
 
-  logic                  valid_ff;
+  logic                      valid_ff;
 
-  logic                  reg_we_ff;
-  logic                  mem_op_ff;
-  logic                  mem_to_reg_ff;
-  logic [      XLEN-1:0] alu_res_ff;
-  logic [           4:0] rd_ff;
-  logic [ADDR_WIDTH-1:0] pc_ff;
+  wb_type_e                  wb_type_ff;
+  logic                      mem_op_ff;
+  logic     [      XLEN-1:0] alu_res_ff;
+  logic     [           4:0] rd_ff;
+  logic     [ADDR_WIDTH-1:0] pc_ff;
 
   // STAGE DATA TRANSFER
 
@@ -62,9 +62,8 @@ module WriteBackStage #(
 
   always_ff @(posedge clk) begin
     if (ready_up_o) begin
-      reg_we_ff <= reg_write_i;
+      wb_type_ff <= wb_type_i;
       mem_op_ff <= mem_op_i;
-      mem_to_reg_ff <= mem_to_reg_i;
       alu_res_ff <= alu_res_i;
       rd_ff <= rd_i;
       pc_ff <= pc_i;
@@ -80,9 +79,9 @@ module WriteBackStage #(
 
   always_comb begin
     if (valid_ff) begin
-      reg_write_o = reg_we_ff && (!mem_op_ff || mem_resp_valid_i);
+      reg_write_o = (wb_type_ff != WB_NONE) && (!mem_op_ff || mem_resp_valid_i);
       rd_o        = rd_ff;
-      res_o       = mem_to_reg_ff ? mem_resp_read_data_i : alu_res_ff;
+      res_o       = (wb_type_ff == WB_MEM_RES) ? mem_resp_read_data_i : alu_res_ff;
     end else begin
       reg_write_o = 1'b0;
       rd_o        = '0;

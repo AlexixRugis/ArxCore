@@ -9,7 +9,8 @@ module ArxCore_tb;
   parameter XLEN = 32;
   parameter INSN_WIDTH = 32;
   parameter CLK_PERIOD = 10;  // ns
-  parameter TIMEOUT = 1700000;
+  parameter TIMEOUT = 100000;
+  parameter TRACE_TIMEOUT = 10000;
 
   // CLOCK AND RESET
   logic            clk;
@@ -272,6 +273,27 @@ module ArxCore_tb;
         if (ram_mask[3]) memory[ram_addr[19:2]][31:24] <= ram_write_data[31:24];
       end
     end
+  end
+
+  // -----------
+
+  // DBG
+
+  initial begin
+    int fd;
+    int cycle;
+
+    fd = $fopen("trace.log", "w");
+
+    cycle = 0;
+    while (cycle < TRACE_TIMEOUT) begin
+      @(posedge clk);
+      $fdisplay(fd, "%d: %d %d %d %d %d", cycle, dbg_pc_fs, dbg_pc_id, dbg_pc_ex, dbg_pc_mem,
+                dbg_pc_wb);
+      cycle++;
+    end
+
+    $fclose(fd);
   end
 
   // -----------

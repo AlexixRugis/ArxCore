@@ -17,6 +17,7 @@ vlog -hazards -lint -sv -work work \
 ../src/include/LoadStoreTypes.sv \
 ../src/include/BranchTypes.sv \
 ../src/include/IALUTypes.sv \
+../src/include/InstrTypes.sv \
 ../src/ExecStage.sv \
 ../src/IALU.sv \
 ../src/IMUL.sv \

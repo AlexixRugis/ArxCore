@@ -1,6 +1,7 @@
 import IALUTypes::*;
 import LoadStoreTypes::*;
 import BranchTypes::*;
+import InstrTypes::*;
 
 module ExecStage #(
     parameter int unsigned XLEN = 32,
@@ -27,8 +28,7 @@ module ExecStage #(
     input branch_type_e                  pc_branch_type_in,
     input logic                          pc_jump_en_in,
 
-    input logic     reg_write_in,
-    input logic     mem_to_reg_in,
+    input wb_type_e wb_type_in,
     input logic     mem_op_in,
     input ls_type_e mem_op_type_in,
 
@@ -53,8 +53,7 @@ module ExecStage #(
 
     output logic [ADDR_WIDTH-1:0] pc_out,
 
-    output logic     reg_write_out,
-    output logic     mem_to_reg_out,
+    output wb_type_e wb_type_out,
     output logic     mem_op_out,
     output ls_type_e mem_op_type_out,
 
@@ -86,8 +85,7 @@ module ExecStage #(
   logic         [ADDR_WIDTH-1:0] m_pc_in;
   branch_type_e                  m_pc_branch_type;
 
-  logic                          m_reg_write_in;
-  logic                          m_mem_to_reg_in;
+  wb_type_e                      m_wb_type;
   logic                          m_mem_op;
   ls_type_e                      m_mem_op_type;
 
@@ -108,8 +106,7 @@ module ExecStage #(
         m_pc_in <= pc_in;
         m_pc_branch_type <= pc_branch_type_in;
 
-        m_reg_write_in <= reg_write_in;
-        m_mem_to_reg_in <= mem_to_reg_in;
+        m_wb_type <= wb_type_in;
         m_mem_op <= mem_op_in;
         m_mem_op_type <= mem_op_type_in;
 
@@ -205,8 +202,7 @@ module ExecStage #(
     pc_branch_out = (m_pc_branch_type === BRANCH_REG_IMM ? m_rs1_in : m_pc_in) + m_imm_in;
     pc_we_out = (m_alu_en_in & ialu_branch_en | m_pc_jump_en_in) & valid_out & ready_out;
 
-    reg_write_out = m_reg_write_in;
-    mem_to_reg_out = m_mem_to_reg_in;
+    wb_type_out = m_wb_type;
     mem_op_out = m_mem_op;
     mem_op_type_out = m_mem_op_type;
 

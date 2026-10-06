@@ -1,100 +1,134 @@
 import IALUTypes::*;
 import LoadStoreTypes::*;
 import BranchTypes::*;
+import InstrTypes::*;
 
 module InsnDecodeStage #(
     parameter int unsigned INSN_WIDTH = 32,
     parameter int unsigned XLEN = 32,
-    parameter int unsigned ADDR_WIDTH = 32
+    parameter int unsigned ADDR_WIDTH = 32,
+    parameter int unsigned EPOCH_WIDTH = 3
 ) (
     input logic clk,
     input logic arstn,
 
     // HALT REQ
-    input  logic halt_req_in,
-    output logic halt_ack_out,
+    input  logic halt_req_i,
+    output logic halt_ack_o,
     // -----------
 
-    input logic flush_in,
+    input logic flush_i,
 
     // FROM FETCH STAGE
-    input  logic valid_in,
-    output logic ready_in,
+    input  logic valid_i,
+    output logic ready_i,
 
-    input logic [ADDR_WIDTH-1:0] pc_in,
-    input logic [INSN_WIDTH-1:0] insn_in,
+    input logic [EPOCH_WIDTH-1:0] epoch_i,
+    input logic [ ADDR_WIDTH-1:0] pc_i,
+    input logic [ INSN_WIDTH-1:0] insn_i,
     // -----------
 
     // TO EXEC STAGE
-    output logic valid_out,
-    input  logic ready_out,
+    output logic valid_o,
+    input  logic ready_o,
 
-    output logic [XLEN-1:0] rs1_out,
-    output logic [XLEN-1:0] rs2_out,
-    output logic [XLEN-1:0] imm_out,
+    output logic [EPOCH_WIDTH-1:0] epoch_o,
 
-    output logic         [           4:0] rd_out,
-    output logic         [ADDR_WIDTH-1:0] pc_out,
-    output branch_type_e                  pc_addr_type_out,
-    output logic                          pc_jump_en_out,
+    output logic [XLEN-1:0] rs1_o,
+    output logic [XLEN-1:0] rs2_o,
+    output logic [XLEN-1:0] imm_o,
 
-    output logic     reg_write_out,
-    output logic     mem_to_reg_out,
-    output logic     mem_op_out,
-    output ls_type_e mem_op_type_out,
+    output logic         [           4:0] rd_o,
+    output logic         [ADDR_WIDTH-1:0] pc_o,
+    output branch_type_e                  pc_addr_type_o,
+    output logic                          pc_jump_en_o,
 
-    output alu_op_e   alu_op_out,
-    output alu_src1_e alu_src_1_out,
-    output alu_src2_e alu_src_2_out,
+    output wb_type_e wb_type_o,
+    output logic     mem_op_o,
+    output ls_type_e mem_op_type_o,
 
-    output mdu_op_e mdu_op_out,
+    output logic alu_en_o,
+    output alu_op_e alu_op_o,
+    output logic mdu_en_o,
+    output mdu_op_e mdu_op_o,
 
-    output logic alu_en_out,
-    output logic mdu_en_out,
+    output alu_src1_e arg_src_1_o,
+    output alu_src2_e arg_src_2_o,
+
     // -----------
 
     // FROM WRITE BACK
-    input  logic [     4:0] rd_in,
-    input  logic [XLEN-1:0] rd_val_in,
-    input  logic            rd_we_in,
+    input  logic [     4:0] rd_i,
+    input  logic [XLEN-1:0] rd_val_i,
+    input  logic            rd_we_i,
     // -----------
-    output logic [     2:0] dbg_used_regs_out[32],
-
-    output logic [XLEN-1:0] dbg_x0,
-    output logic [XLEN-1:0] dbg_x1,
-    output logic [XLEN-1:0] dbg_x2,
-    output logic [XLEN-1:0] dbg_x3,
-    output logic [XLEN-1:0] dbg_x4,
-    output logic [XLEN-1:0] dbg_x5,
-    output logic [XLEN-1:0] dbg_x6,
-    output logic [XLEN-1:0] dbg_x7,
-    output logic [XLEN-1:0] dbg_x10,
-    output logic [XLEN-1:0] dbg_x11,
-    output logic [XLEN-1:0] dbg_x12,
-    output logic [XLEN-1:0] dbg_x13,
-    output logic [XLEN-1:0] dbg_x14,
-    output logic [XLEN-1:0] dbg_x15,
-    output logic [XLEN-1:0] dbg_x16,
-    output logic [XLEN-1:0] dbg_x17
+    output logic [     2:0] dbg_used_regs_o[32],
+    output logic [XLEN-1:0] dbg_x_o        [18]
 );
 
   // STAGE REGISTERS
 
-  logic                  m_valid;
-  logic [ADDR_WIDTH-1:0] m_pc;
-  logic [INSN_WIDTH-1:0] m_insn;
+  logic                            valid_ff;
+
+  logic          [EPOCH_WIDTH-1:0] epoch_ff;
+  logic          [ ADDR_WIDTH-1:0] pc_ff;
+  logic          [ INSN_WIDTH-1:0] insn_ff;
+
+  logic          [            1:0] reg_use_cnt_ff [32];
+
+  logic                            need_stall;
+  logic                            reg_write_sync;
+  instr_fields_t                   instr_fields;
+
+  logic          [       XLEN-1:0] imm;
+
+  wb_type_e                        wb_type;
+
+  logic                            mem_op;
+  ls_type_e                        mem_op_type;
+
+  logic                            pc_jump_en;
+  branch_type_e                    m_pc_addr_type;
+
+  logic                            alu_en;
+  alu_op_e                         alu_op;
+
+
+  logic                            mdu_en;
+  mdu_op_e                         mdu_op;
+
+  alu_src1_e                       arg_src_1;
+  alu_src2_e                       arg_src_2;
+
+  assign need_stall = (|(reg_use_cnt_ff[instr_fields.rs_1])) || (|(reg_use_cnt_ff[instr_fields.rs_2]));
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
-      m_valid <= 1'b0;
+      valid_ff <= 1'b0;
     end else begin
-      if (valid_in & ready_in) begin
-        m_valid <= 1'b1;
-        m_pc <= pc_in;
-        m_insn <= insn_in;
-      end else if (flush_in | valid_out & ready_out) begin
-        m_valid <= 1'b0;
+      if (ready_i && valid_i) begin
+        valid_ff <= 1'b1;
+      end else if (flush_i || valid_o && ready_o) begin
+        valid_ff <= 1'b0;
       end
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (valid_i && ready_i) begin
+      epoch_ff <= epoch_i;
+      pc_ff <= pc_i;
+      insn_ff <= insn_i;
+    end
+  end
+
+  always_comb begin
+    if (~flush_i & ~halt_req_i) begin
+      ready_i = !valid_ff || (~need_stall && ready_o);
+      valid_o = valid_ff && !need_stall;
+    end else begin
+      ready_i = 1'b0;
+      valid_o = 1'b0;
     end
   end
 
@@ -102,36 +136,9 @@ module InsnDecodeStage #(
 
   // INSN DECODER
 
-  logic [     6:0] m_opcode;
-  logic [     4:0] m_rs_1;
-  logic [     4:0] m_rs_2;
-  logic [     4:0] m_rd;
-
-  logic [     2:0] m_funct_3;
-  logic [     6:0] m_funct_7;
-
-  logic [XLEN-1:0] m_imm_i;
-  logic [XLEN-1:0] m_imm_s;
-  logic [XLEN-1:0] m_imm_b;
-  logic [XLEN-1:0] m_imm_u;
-  logic [XLEN-1:0] m_imm_j;
-
   InsnDecoder insnDecoder (
-      .insn(m_insn),
-
-      .opcode(m_opcode),
-      .rs_1(m_rs_1),
-      .rs_2(m_rs_2),
-      .rd(m_rd),
-
-      .funct_3(m_funct_3),
-      .funct_7(m_funct_7),
-
-      .imm_i(m_imm_i),
-      .imm_s(m_imm_s),
-      .imm_b(m_imm_b),
-      .imm_u(m_imm_u),
-      .imm_j(m_imm_j)
+      .insn_i  (insn_ff),
+      .fields_o(instr_fields)
   );
 
   // -----------
@@ -144,51 +151,33 @@ module InsnDecodeStage #(
       .clk  (clk),
       .arstn(arstn),
 
-      .rs_1 (m_rs_1),
-      .out_1(rs1_out),
-      .rs_2 (m_rs_2),
-      .out_2(rs2_out),
+      .rs_1 (instr_fields.rs_1),
+      .out_1(rs1_o),
+      .rs_2 (instr_fields.rs_2),
+      .out_2(rs2_o),
 
-      .rd(rd_in),
-      .write_en(rd_we_in),
-      .write_data(rd_val_in),
+      .rd(rd_i),
+      .write_en(rd_we_i),
+      .write_data(rd_val_i),
 
-      .dbg_x0 (dbg_x0),
-      .dbg_x1 (dbg_x1),
-      .dbg_x2 (dbg_x2),
-      .dbg_x3 (dbg_x3),
-      .dbg_x4 (dbg_x4),
-      .dbg_x5 (dbg_x5),
-      .dbg_x6 (dbg_x6),
-      .dbg_x7 (dbg_x7),
-      .dbg_x10(dbg_x10),
-      .dbg_x11(dbg_x11),
-      .dbg_x12(dbg_x12),
-      .dbg_x13(dbg_x13),
-      .dbg_x14(dbg_x14),
-      .dbg_x15(dbg_x15),
-      .dbg_x16(dbg_x16),
-      .dbg_x17(dbg_x17)
+      .dbg_x(dbg_x_o)
   );
 
-  logic [1:0] m_used_reg     [32];
-
-  logic       reg_write_sync;
-  assign reg_write_sync = valid_out & ready_out & reg_write_out;
+  assign reg_write_sync = valid_o & ready_o & (wb_type_o != WB_NONE);
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
       for (int i = 0; i < 32; i = i + 1) begin
-        m_used_reg[i] <= '0;
+        reg_use_cnt_ff[i] <= '0;
       end
     end else begin
-      if (rd_in != rd_out | ~rd_we_in | ~reg_write_sync) begin
-        if (rd_we_in) begin
-          m_used_reg[rd_in] <= m_used_reg[rd_in] - 1'b1;
+      if (rd_i != rd_o | ~rd_we_i | ~reg_write_sync) begin
+        if (rd_we_i) begin
+          reg_use_cnt_ff[rd_i] <= reg_use_cnt_ff[rd_i] - 1'b1;
         end
 
         if (reg_write_sync) begin
-          m_used_reg[rd_out] <= m_used_reg[rd_out] + 1'b1;
+          reg_use_cnt_ff[rd_o] <= reg_use_cnt_ff[rd_o] + 1'b1;
         end
       end
     end
@@ -198,237 +187,196 @@ module InsnDecodeStage #(
 
   // OUT ASSIGNMENTS
 
-  logic         [XLEN-1:0] m_imm;
-  logic                    m_reg_write;
-  logic                    m_mem_to_reg;
-
-  logic                    m_mem_op;
-  ls_type_e                m_mem_op_type;
-
-  logic                    m_pc_jump_en;
-  branch_type_e            m_pc_addr_type;
-
-  alu_op_e                 m_alu_op;
-  alu_src1_e               m_alu_src_1;
-  alu_src2_e               m_alu_src_2;
-
-  mdu_op_e                 m_mdu_op;
-
-  logic                    m_alu_en;
-  logic                    m_mdu_en;
-
-  always_comb begin
-    imm_out = m_imm;
-    rd_out = m_rd;
-    pc_out = m_pc;
-
-    reg_write_out = m_reg_write;
-    mem_to_reg_out = m_mem_to_reg;
-
-    mem_op_out = m_mem_op;
-    mem_op_type_out = m_mem_op_type;
-
-    pc_jump_en_out = m_pc_jump_en;
-    pc_addr_type_out = m_pc_addr_type;
-
-    alu_op_out = m_alu_op;
-    alu_src_1_out = m_alu_src_1;
-    alu_src_2_out = m_alu_src_2;
-
-    mdu_op_out = m_mdu_op;
-
-    alu_en_out = m_alu_en;
-    mdu_en_out = m_mdu_en;
-
-    halt_ack_out = halt_req_in;
-  end
-
-  always_comb begin
-    if (~flush_in & ~halt_req_in) begin
-      valid_out = m_valid & (m_used_reg[m_rs_1] == 2'b00 & m_used_reg[m_rs_2] == 2'b00);
-      ready_in  = ~m_valid | (valid_out & ready_out);
-    end else begin
-      valid_out = 1'b0;
-      ready_in  = 1'b0;
-    end
-  end
+  assign imm_o = imm;
+  assign rd_o = instr_fields.rd;
+  assign pc_o = pc_ff;
+  assign wb_type_o = wb_type;
+  assign mem_op_o = mem_op;
+  assign mem_op_type_o = mem_op_type;
+  assign pc_jump_en_o = pc_jump_en;
+  assign pc_addr_type_o = m_pc_addr_type;
+  assign alu_op_o = alu_op;
+  assign arg_src_1_o = arg_src_1;
+  assign arg_src_2_o = arg_src_2;
+  assign mdu_op_o = mdu_op;
+  assign alu_en_o = alu_en;
+  assign mdu_en_o = mdu_en;
+  assign halt_ack_o = halt_req_i;
 
   // -----------
 
   // DECODING
 
   always_comb begin
-    m_imm = '0;
-    m_reg_write = 1'b0;
-    m_mem_to_reg = 1'b0;
+    imm = '0;
+    wb_type = WB_NONE;
 
-    m_mem_op = 1'b0;
-    m_mem_op_type = LOAD_WORD;
+    mem_op = 1'b0;
+    mem_op_type = LOAD_WORD;
 
-    m_pc_jump_en = 1'b0;
+    pc_jump_en = 1'b0;
     m_pc_addr_type = BRANCH_PC_IMM;
 
-    m_alu_op = IALU_ADD;
-    m_alu_src_1 = OP_SRC_RS1;
-    m_alu_src_2 = OP_SRC_RS2;
+    alu_op = IALU_ADD;
+    arg_src_1 = OP_SRC_RS1;
+    arg_src_2 = OP_SRC_RS2;
 
-    m_mdu_op = IMDU_MUL;
+    mdu_op = IMDU_MUL;
 
-    m_alu_en = 1'b0;
-    m_mdu_en = 1'b0;
+    alu_en = 1'b0;
+    mdu_en = 1'b0;
 
-    case (m_opcode)
+    case (instr_fields.opcode)
       7'b0110011: begin
-        m_reg_write = 1'b1;
-        m_alu_src_1 = OP_SRC_RS1;
-        m_alu_src_2 = OP_SRC_RS2;
+        wb_type   = WB_EX_RES;
+        arg_src_1 = OP_SRC_RS1;
+        arg_src_2 = OP_SRC_RS2;
 
-        if (m_funct_7 == 7'h01) begin
-          m_alu_en = 1'b0;
-          m_mdu_en = 1'b1;
+        if (instr_fields.funct_7 == 7'h01) begin
+          alu_en = 1'b0;
+          mdu_en = 1'b1;
         end else begin
-          m_alu_en = 1'b1;
-          m_mdu_en = 1'b0;
+          alu_en = 1'b1;
+          mdu_en = 1'b0;
         end
 
         unique case ({
-          m_funct_3, m_funct_7
+          instr_fields.funct_3, instr_fields.funct_7
         })
-          {3'h0, 7'h00} : m_alu_op = IALU_ADD;
-          {3'h0, 7'h20} : m_alu_op = IALU_SUB;
-          {3'h4, 7'h00} : m_alu_op = IALU_XOR;
-          {3'h6, 7'h00} : m_alu_op = IALU_OR;
-          {3'h7, 7'h00} : m_alu_op = IALU_AND;
-          {3'h1, 7'h00} : m_alu_op = IALU_SLL;
-          {3'h5, 7'h00} : m_alu_op = IALU_SRL;
-          {3'h5, 7'h20} : m_alu_op = IALU_SRA;
-          {3'h2, 7'h00} : m_alu_op = IALU_SLT;
-          {3'h3, 7'h00} : m_alu_op = IALU_SLTU;
+          {3'h0, 7'h00} : alu_op = IALU_ADD;
+          {3'h0, 7'h20} : alu_op = IALU_SUB;
+          {3'h4, 7'h00} : alu_op = IALU_XOR;
+          {3'h6, 7'h00} : alu_op = IALU_OR;
+          {3'h7, 7'h00} : alu_op = IALU_AND;
+          {3'h1, 7'h00} : alu_op = IALU_SLL;
+          {3'h5, 7'h00} : alu_op = IALU_SRL;
+          {3'h5, 7'h20} : alu_op = IALU_SRA;
+          {3'h2, 7'h00} : alu_op = IALU_SLT;
+          {3'h3, 7'h00} : alu_op = IALU_SLTU;
 
-          {3'h0, 7'h01} : m_mdu_op = IMDU_MUL;
-          {3'h1, 7'h01} : m_mdu_op = IMDU_MULH;
-          {3'h2, 7'h01} : m_mdu_op = IMDU_MULHSU;
-          {3'h3, 7'h01} : m_mdu_op = IMDU_MULHU;
-          {3'h4, 7'h01} : m_mdu_op = IMDU_DIV;
-          {3'h5, 7'h01} : m_mdu_op = IMDU_DIVU;
-          {3'h6, 7'h01} : m_mdu_op = IMDU_REM;
-          {3'h7, 7'h01} : m_mdu_op = IMDU_REMU;
+          {3'h0, 7'h01} : mdu_op = IMDU_MUL;
+          {3'h1, 7'h01} : mdu_op = IMDU_MULH;
+          {3'h2, 7'h01} : mdu_op = IMDU_MULHSU;
+          {3'h3, 7'h01} : mdu_op = IMDU_MULHU;
+          {3'h4, 7'h01} : mdu_op = IMDU_DIV;
+          {3'h5, 7'h01} : mdu_op = IMDU_DIVU;
+          {3'h6, 7'h01} : mdu_op = IMDU_REM;
+          {3'h7, 7'h01} : mdu_op = IMDU_REMU;
         endcase
       end
       7'b0010011: begin
-        m_reg_write = 1'b1;
-        m_alu_en = 1'b1;
-        m_alu_src_1 = OP_SRC_RS1;
-        m_alu_src_2 = OP_SRC_IMM;
-        m_imm = m_imm_i;
+        wb_type = WB_EX_RES;
+        alu_en = 1'b1;
+        arg_src_1 = OP_SRC_RS1;
+        arg_src_2 = OP_SRC_IMM;
+        imm = instr_fields.imm_i;
 
-        unique case (m_funct_3)
-          3'h0: m_alu_op = IALU_ADD;
-          3'h4: m_alu_op = IALU_XOR;
-          3'h6: m_alu_op = IALU_OR;
-          3'h7: m_alu_op = IALU_AND;
+        unique case (instr_fields.funct_3)
+          3'h0: alu_op = IALU_ADD;
+          3'h4: alu_op = IALU_XOR;
+          3'h6: alu_op = IALU_OR;
+          3'h7: alu_op = IALU_AND;
           3'h1: begin
-            m_imm = {27'b0, m_imm_i[4:0]};
-            m_alu_op = IALU_SLL;
+            imm = {27'b0, instr_fields.imm_i[4:0]};
+            alu_op = IALU_SLL;
           end
           3'h5: begin
-            m_imm = {27'b0, m_imm_i[4:0]};
-            m_alu_op = m_funct_7 === 7'h00 ? IALU_SRL : IALU_SRA;
+            imm = {27'b0, instr_fields.imm_i[4:0]};
+            alu_op = instr_fields.funct_7 === 7'h00 ? IALU_SRL : IALU_SRA;
           end
-          3'h2: m_alu_op = IALU_SLT;
-          3'h3: m_alu_op = IALU_SLTU;
+          3'h2: alu_op = IALU_SLT;
+          3'h3: alu_op = IALU_SLTU;
         endcase
       end
       7'b0000011: begin
-        m_reg_write = 1'b1;
-        m_mem_to_reg = 1'b1;
+        wb_type = WB_MEM_RES;
 
-        m_alu_en = 1'b1;
-        m_alu_src_1 = OP_SRC_RS1;
-        m_alu_src_2 = OP_SRC_IMM;
-        m_alu_op = IALU_ADD;
-        m_imm = m_imm_i;
+        alu_en = 1'b1;
+        arg_src_1 = OP_SRC_RS1;
+        arg_src_2 = OP_SRC_IMM;
+        alu_op = IALU_ADD;
+        imm = instr_fields.imm_i;
 
-        m_mem_op = 1'b1;
-        unique case (m_funct_3)
-          3'h0: m_mem_op_type = LOAD_BYTE;
-          3'h1: m_mem_op_type = LOAD_HALFWORD;
-          3'h2: m_mem_op_type = LOAD_WORD;
-          3'h4: m_mem_op_type = LOAD_BYTE_UNSIGNED;
-          3'h5: m_mem_op_type = LOAD_HALFWORD_UNSIGNED;
+        mem_op = 1'b1;
+        unique case (instr_fields.funct_3)
+          3'h0: mem_op_type = LOAD_BYTE;
+          3'h1: mem_op_type = LOAD_HALFWORD;
+          3'h2: mem_op_type = LOAD_WORD;
+          3'h4: mem_op_type = LOAD_BYTE_UNSIGNED;
+          3'h5: mem_op_type = LOAD_HALFWORD_UNSIGNED;
         endcase
       end
       7'b0100011: begin
-        m_alu_en = 1'b1;
-        m_alu_src_1 = OP_SRC_RS1;
-        m_alu_src_2 = OP_SRC_IMM;
-        m_alu_op = IALU_ADD;
-        m_imm = m_imm_s;
+        alu_en = 1'b1;
+        arg_src_1 = OP_SRC_RS1;
+        arg_src_2 = OP_SRC_IMM;
+        alu_op = IALU_ADD;
+        imm = instr_fields.imm_s;
 
-        m_mem_op = 1'b1;
-        unique case (m_funct_3)
-          3'h0: m_mem_op_type = STORE_BYTE;
-          3'h1: m_mem_op_type = STORE_HALFWORD;
-          3'h2: m_mem_op_type = STORE_WORD;
+        mem_op = 1'b1;
+        unique case (instr_fields.funct_3)
+          3'h0: mem_op_type = STORE_BYTE;
+          3'h1: mem_op_type = STORE_HALFWORD;
+          3'h2: mem_op_type = STORE_WORD;
         endcase
       end
       7'b1100011: begin
         m_pc_addr_type = BRANCH_PC_IMM;
 
-        m_alu_en = 1'b1;
-        m_alu_src_1 = OP_SRC_RS1;
-        m_alu_src_2 = OP_SRC_RS2;
-        m_imm = m_imm_b;
+        alu_en = 1'b1;
+        arg_src_1 = OP_SRC_RS1;
+        arg_src_2 = OP_SRC_RS2;
+        imm = instr_fields.imm_b;
 
-        unique case (m_funct_3)
-          3'h0: m_alu_op = IALU_EQ;
-          3'h1: m_alu_op = IALU_NEQ;
-          3'h4: m_alu_op = IALU_LT;
-          3'h5: m_alu_op = IALU_GE;
-          3'h6: m_alu_op = IALU_LTU;
-          3'h7: m_alu_op = IALU_GEU;
+        unique case (instr_fields.funct_3)
+          3'h0: alu_op = IALU_EQ;
+          3'h1: alu_op = IALU_NEQ;
+          3'h4: alu_op = IALU_LT;
+          3'h5: alu_op = IALU_GE;
+          3'h6: alu_op = IALU_LTU;
+          3'h7: alu_op = IALU_GEU;
         endcase
       end
       7'b1101111: begin
-        m_alu_en = 1'b1;
-        m_pc_jump_en = 1'b1;
+        alu_en = 1'b1;
+        pc_jump_en = 1'b1;
         m_pc_addr_type = BRANCH_PC_IMM;
-        m_imm = m_imm_j;
+        imm = instr_fields.imm_j;
 
-        m_reg_write = 1'b1;
-        m_alu_src_1 = OP_SRC_PC;
-        m_alu_src_2 = OP_SRC_FOUR;
-        m_alu_op = IALU_ADD;
+        wb_type = WB_EX_RES;
+        arg_src_1 = OP_SRC_PC;
+        arg_src_2 = OP_SRC_FOUR;
+        alu_op = IALU_ADD;
       end
       7'b1100111: begin
-        m_pc_jump_en = 1'b1;
+        pc_jump_en = 1'b1;
         m_pc_addr_type = BRANCH_REG_IMM;
-        m_imm = m_imm_i;
+        imm = instr_fields.imm_i;
 
-        m_reg_write = 1'b1;
-        m_alu_en = 1'b1;
-        m_alu_src_1 = OP_SRC_PC;
-        m_alu_src_2 = OP_SRC_FOUR;
-        m_alu_op = IALU_ADD;
+        wb_type = WB_EX_RES;
+        alu_en = 1'b1;
+        arg_src_1 = OP_SRC_PC;
+        arg_src_2 = OP_SRC_FOUR;
+        alu_op = IALU_ADD;
       end
       7'b0110111: begin
-        m_reg_write = 1'b1;
-        m_alu_en = 1'b1;
-        m_alu_src_1 = OP_SRC_ZERO;
-        m_alu_src_2 = OP_SRC_IMM;
-        m_alu_op = IALU_ADD;
-        m_imm = m_imm_u;
+        wb_type = WB_EX_RES;
+        alu_en = 1'b1;
+        arg_src_1 = OP_SRC_ZERO;
+        arg_src_2 = OP_SRC_IMM;
+        alu_op = IALU_ADD;
+        imm = instr_fields.imm_u;
       end
       7'b0010111: begin
-        m_reg_write = 1'b1;
-        m_alu_en = 1'b1;
-        m_alu_src_1 = OP_SRC_PC;
-        m_alu_src_2 = OP_SRC_IMM;
-        m_alu_op = IALU_ADD;
-        m_imm = m_imm_u;
+        wb_type = WB_EX_RES;
+        alu_en = 1'b1;
+        arg_src_1 = OP_SRC_PC;
+        arg_src_2 = OP_SRC_IMM;
+        alu_op = IALU_ADD;
+        imm = instr_fields.imm_u;
       end
       default: begin
-        m_alu_en = 1'b1;
+        alu_en = 1'b1;
       end
     endcase
   end
@@ -439,7 +387,7 @@ module InsnDecodeStage #(
 
   always_comb begin
     for (int i = 0; i < 32; i = i + 1) begin
-      dbg_used_regs_out[i] = m_used_reg[i];
+      dbg_used_regs_o[i] = reg_use_cnt_ff[i];
     end
   end
 

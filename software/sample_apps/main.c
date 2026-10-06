@@ -39,14 +39,14 @@ static void t_llb_diff(void) {
         : "memory"
     );
     //*out = 2;
-    *out = 0xff; delay(1000);
-    *out = v0; delay(1000);
-    *out = 0xff; delay(500);
-    *out = v1; delay(1000);
-    *out = 0xff; delay(500);
-    *out = v2; delay(1000);
-    *out = 0xff; delay(500);
-    *out = v3; delay(1000);
+    *out = 0xff;// delay(1000);
+    *out = v0; //delay(1000);
+    *out = 0xff; //delay(500);
+    *out = v1; //delay(1000);
+    *out = 0xff; //delay(500);
+    *out = v2; //delay(1000);
+    *out = 0xff; //delay(500);
+    *out = v3; //delay(1000);
 }
 
 int main() {
