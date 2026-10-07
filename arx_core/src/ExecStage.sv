@@ -1,12 +1,11 @@
+import arx_core_config_pkg::*;
+import PipelineTypes::*;
 import IALUTypes::*;
 import LoadStoreTypes::*;
 import BranchTypes::*;
 import InstrTypes::*;
 
-module ExecStage #(
-    parameter int unsigned XLEN = 32,
-    parameter int unsigned ADDR_WIDTH = 32
-) (
+module ExecStage (
     input logic clk,
     input logic arstn,
 
@@ -19,43 +18,14 @@ module ExecStage #(
     input  logic valid_in,
     output logic ready_in,
 
-    input logic [XLEN-1:0] rs1_in,
-    input logic [XLEN-1:0] rs2_in,
-    input logic [XLEN-1:0] imm_in,
-
-    input logic         [           4:0] rd_in,
-    input logic         [ADDR_WIDTH-1:0] pc_in,
-    input branch_type_e                  pc_branch_type_in,
-    input logic                          pc_jump_en_in,
-
-    input wb_type_e wb_type_in,
-    input logic     mem_op_in,
-    input ls_type_e mem_op_type_in,
-
-    input logic      [IALU_OP_WIDTH-1:0] alu_op_in,
-    input alu_src1_e                     alu_src_1_in,
-    input alu_src2_e                     alu_src_2_in,
-
-    input mdu_op_e mdu_op_in,
-
-    input logic alu_en_in,
-    input logic mdu_en_in,
-
+    input id2ex_t data_in,
     // -----------
 
     // TO MEM STAGE
     output logic valid_out,
     input  logic ready_out,
 
-    output logic [XLEN-1:0] alu_out,
-    output logic [XLEN-1:0] rs2_out,
-    output logic [     4:0] rd_out,
-
-    output logic [ADDR_WIDTH-1:0] pc_out,
-
-    output wb_type_e wb_type_out,
-    output logic     mem_op_out,
-    output ls_type_e mem_op_type_out,
+    output ex2mem_t data_out,
 
     // -----------
     output logic [XLEN-1:0] pc_branch_out,
@@ -65,55 +35,25 @@ module ExecStage #(
   wire m_in_handshake;
   assign m_in_handshake = ready_in & valid_in;
 
-  logic                          m_alu_valid_in;
-  logic                          m_alu_ready_in;
-  logic                          m_alu_valid_out;
-  logic                          m_alu_ready_out;
+  logic   m_alu_valid_in;
+  logic   m_alu_ready_in;
+  logic   m_alu_valid_out;
+  logic   m_alu_ready_out;
 
-  logic                          m_mdu_valid_in;
-  logic                          m_mdu_ready_in;
-  logic                          m_mdu_valid_out;
-  logic                          m_mdu_ready_out;
+  logic   m_mdu_valid_in;
+  logic   m_mdu_ready_in;
+  logic   m_mdu_valid_out;
+  logic   m_mdu_ready_out;
 
   // STAGE REGISTERS
 
-  logic         [      XLEN-1:0] m_rs1_in;
-  logic         [      XLEN-1:0] m_rs2_in;
-  logic         [      XLEN-1:0] m_imm_in;
-
-  logic         [           4:0] m_rd_in;
-  logic         [ADDR_WIDTH-1:0] m_pc_in;
-  branch_type_e                  m_pc_branch_type;
-
-  wb_type_e                      m_wb_type;
-  logic                          m_mem_op;
-  ls_type_e                      m_mem_op_type;
-
-  logic                          m_pc_jump_en_in;
-
-  logic                          m_alu_en_in;
-  logic                          m_mdu_en_in;
+  id2ex_t data_ff;
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
     end else begin
       if (m_in_handshake) begin
-        m_rs1_in <= rs1_in;
-        m_rs2_in <= rs2_in;
-        m_imm_in <= imm_in;
-
-        m_rd_in <= rd_in;
-        m_pc_in <= pc_in;
-        m_pc_branch_type <= pc_branch_type_in;
-
-        m_wb_type <= wb_type_in;
-        m_mem_op <= mem_op_in;
-        m_mem_op_type <= mem_op_type_in;
-
-        m_pc_jump_en_in <= pc_jump_en_in;
-
-        m_alu_en_in <= alu_en_in;
-        m_mdu_en_in <= mdu_en_in;
+        data_ff <= data_in;
       end
     end
   end
@@ -164,7 +104,7 @@ module ExecStage #(
 
       .arg_1_in (ialu_arg_1),
       .arg_2_in (ialu_arg_2),
-      .opcode_in(mdu_op_in),
+      .opcode_in(data_in.mdu_op),
 
       .res_out  (imdu_res),
       .valid_out(m_mdu_valid_out),
@@ -175,36 +115,36 @@ module ExecStage #(
 
   always_comb begin
 
-    unique case (alu_src_1_in)
-      OP_SRC_RS1:  ialu_arg_1 = rs1_in;
+    unique case (data_in.arg_src_1)
+      OP_SRC_RS1:  ialu_arg_1 = data_in.rs1;
       OP_SRC_ZERO: ialu_arg_1 = '0;
-      OP_SRC_PC:   ialu_arg_1 = pc_in;
+      OP_SRC_PC:   ialu_arg_1 = data_in.pc;
     endcase
 
-    unique case (alu_src_2_in)
-      OP_SRC_RS2:  ialu_arg_2 = rs2_in;
+    unique case (data_in.arg_src_2)
+      OP_SRC_RS2:  ialu_arg_2 = data_in.rs2;
       OP_SRC_FOUR: ialu_arg_2 = XLEN'(4);
-      OP_SRC_IMM:  ialu_arg_2 = imm_in;
+      OP_SRC_IMM:  ialu_arg_2 = data_in.imm;
     endcase
 
-    ialu_opcode = alu_op_in;
+    ialu_opcode = data_in.alu_op;
   end
 
   // OUT ASSIGNMENTS
 
   always_comb begin
-    alu_out = m_alu_en_in ? ialu_res : (m_mdu_en_in ? imdu_res : '0);
+    data_out.alu_res = data_ff.alu_en ? ialu_res : (data_ff.mdu_en ? imdu_res : '0);
 
-    rs2_out = m_rs2_in;
-    rd_out = m_rd_in;
-    pc_out = m_pc_in;
+    data_out.rs2 = data_ff.rs2;
+    data_out.rd = data_ff.rd;
+    data_out.pc = data_ff.pc;
 
-    pc_branch_out = (m_pc_branch_type === BRANCH_REG_IMM ? m_rs1_in : m_pc_in) + m_imm_in;
-    pc_we_out = (m_alu_en_in & ialu_branch_en | m_pc_jump_en_in) & valid_out & ready_out;
+    pc_branch_out = (data_ff.pc_addr_type === BRANCH_REG_IMM ? data_ff.rs1 : data_ff.pc) + data_ff.imm;
+    pc_we_out = (data_ff.alu_en & ialu_branch_en | data_ff.pc_jump_en) & valid_out & ready_out;
 
-    wb_type_out = m_wb_type;
-    mem_op_out = m_mem_op;
-    mem_op_type_out = m_mem_op_type;
+    data_out.wb_type = data_ff.wb_type;
+    data_out.mem_op = data_ff.mem_op;
+    data_out.mem_op_type = data_ff.mem_op_type;
 
     halt_ack_out = halt_req_in;
   end
@@ -212,12 +152,12 @@ module ExecStage #(
   always_comb begin
     if (~halt_req_in) begin
       ready_in = m_alu_ready_in & m_mdu_ready_in;
-      valid_out = m_alu_en_in & m_alu_valid_out | m_mdu_en_in & m_mdu_valid_out;
+      valid_out = data_ff.alu_en & m_alu_valid_out | data_ff.mdu_en & m_mdu_valid_out;
 
-      m_alu_valid_in = valid_in & ready_in & alu_en_in;
+      m_alu_valid_in = valid_in & ready_in & data_in.alu_en;
       m_alu_ready_out = ready_out;
 
-      m_mdu_valid_in = valid_in & ready_in & mdu_en_in;
+      m_mdu_valid_in = valid_in & ready_in & data_in.mdu_en;
       m_mdu_ready_out = ready_out;
     end else begin
       ready_in = 1'b0;

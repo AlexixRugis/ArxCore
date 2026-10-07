@@ -1,14 +1,11 @@
+import arx_core_config_pkg::*;
+import PipelineTypes::*;
 import IALUTypes::*;
 import LoadStoreTypes::*;
 import BranchTypes::*;
 import InstrTypes::*;
 
-module InsnDecodeStage #(
-    parameter int unsigned INSN_WIDTH = 32,
-    parameter int unsigned XLEN = 32,
-    parameter int unsigned ADDR_WIDTH = 32,
-    parameter int unsigned EPOCH_WIDTH = 3
-) (
+module InsnDecodeStage (
     input logic clk,
     input logic arstn,
 
@@ -23,44 +20,18 @@ module InsnDecodeStage #(
     input  logic valid_i,
     output logic ready_i,
 
-    input logic [EPOCH_WIDTH-1:0] epoch_i,
-    input logic [ ADDR_WIDTH-1:0] pc_i,
-    input logic [ INSN_WIDTH-1:0] insn_i,
+    input if2id_t data_i,
     // -----------
 
     // TO EXEC STAGE
     output logic valid_o,
     input  logic ready_o,
 
-    output logic [EPOCH_WIDTH-1:0] epoch_o,
-
-    output logic [XLEN-1:0] rs1_o,
-    output logic [XLEN-1:0] rs2_o,
-    output logic [XLEN-1:0] imm_o,
-
-    output logic         [           4:0] rd_o,
-    output logic         [ADDR_WIDTH-1:0] pc_o,
-    output branch_type_e                  pc_addr_type_o,
-    output logic                          pc_jump_en_o,
-
-    output wb_type_e wb_type_o,
-    output logic     mem_op_o,
-    output ls_type_e mem_op_type_o,
-
-    output logic alu_en_o,
-    output alu_op_e alu_op_o,
-    output logic mdu_en_o,
-    output mdu_op_e mdu_op_o,
-
-    output alu_src1_e arg_src_1_o,
-    output alu_src2_e arg_src_2_o,
-
+    output id2ex_t data_o,
     // -----------
 
     // FROM WRITE BACK
-    input  logic [     4:0] rd_i,
-    input  logic [XLEN-1:0] rd_val_i,
-    input  logic            rd_we_i,
+    input reg_wb_t reg_wb_i,
     // -----------
     output logic [     2:0] dbg_used_regs_o[32],
     output logic [XLEN-1:0] dbg_x_o        [18]
@@ -68,37 +39,35 @@ module InsnDecodeStage #(
 
   // STAGE REGISTERS
 
-  logic                            valid_ff;
+  logic                     valid_ff;
 
-  logic          [EPOCH_WIDTH-1:0] epoch_ff;
-  logic          [ ADDR_WIDTH-1:0] pc_ff;
-  logic          [ INSN_WIDTH-1:0] insn_ff;
+  if2id_t                   data_ff;
 
-  logic          [            1:0] reg_use_cnt_ff [32];
+  logic          [     1:0] reg_use_cnt_ff [32];
 
-  logic                            need_stall;
-  logic                            reg_write_sync;
-  instr_fields_t                   instr_fields;
+  logic                     need_stall;
+  logic                     reg_write_sync;
+  instr_fields_t            instr_fields;
 
-  logic          [       XLEN-1:0] imm;
+  logic          [XLEN-1:0] imm;
 
-  wb_type_e                        wb_type;
+  wb_type_e                 wb_type;
 
-  logic                            mem_op;
-  ls_type_e                        mem_op_type;
+  logic                     mem_op;
+  ls_type_e                 mem_op_type;
 
-  logic                            pc_jump_en;
-  branch_type_e                    m_pc_addr_type;
+  logic                     pc_jump_en;
+  branch_type_e             m_pc_addr_type;
 
-  logic                            alu_en;
-  alu_op_e                         alu_op;
+  logic                     alu_en;
+  alu_op_e                  alu_op;
 
 
-  logic                            mdu_en;
-  mdu_op_e                         mdu_op;
+  logic                     mdu_en;
+  mdu_op_e                  mdu_op;
 
-  alu_src1_e                       arg_src_1;
-  alu_src2_e                       arg_src_2;
+  alu_src1_e                arg_src_1;
+  alu_src2_e                arg_src_2;
 
   assign need_stall = (|(reg_use_cnt_ff[instr_fields.rs_1])) || (|(reg_use_cnt_ff[instr_fields.rs_2]));
 
@@ -116,9 +85,7 @@ module InsnDecodeStage #(
 
   always_ff @(posedge clk) begin
     if (valid_i && ready_i) begin
-      epoch_ff <= epoch_i;
-      pc_ff <= pc_i;
-      insn_ff <= insn_i;
+      data_ff <= data_i;
     end
   end
 
@@ -137,7 +104,7 @@ module InsnDecodeStage #(
   // INSN DECODER
 
   InsnDecoder insnDecoder (
-      .insn_i  (insn_ff),
+      .insn_i  (data_ff.insn),
       .fields_o(instr_fields)
   );
 
@@ -152,18 +119,18 @@ module InsnDecodeStage #(
       .arstn(arstn),
 
       .rs_1 (instr_fields.rs_1),
-      .out_1(rs1_o),
+      .out_1(data_o.rs1),
       .rs_2 (instr_fields.rs_2),
-      .out_2(rs2_o),
+      .out_2(data_o.rs2),
 
-      .rd(rd_i),
-      .write_en(rd_we_i),
-      .write_data(rd_val_i),
+      .rd(reg_wb_i.rd),
+      .write_en(reg_wb_i.we),
+      .write_data(reg_wb_i.data),
 
       .dbg_x(dbg_x_o)
   );
 
-  assign reg_write_sync = valid_o & ready_o & (wb_type_o != WB_NONE);
+  assign reg_write_sync = valid_o & ready_o & (data_o.wb_type != WB_NONE);
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
@@ -171,13 +138,13 @@ module InsnDecodeStage #(
         reg_use_cnt_ff[i] <= '0;
       end
     end else begin
-      if (rd_i != rd_o | ~rd_we_i | ~reg_write_sync) begin
-        if (rd_we_i) begin
-          reg_use_cnt_ff[rd_i] <= reg_use_cnt_ff[rd_i] - 1'b1;
+      if (reg_wb_i.rd != data_o.rd | ~reg_wb_i.we | ~reg_write_sync) begin
+        if (reg_wb_i.we) begin
+          reg_use_cnt_ff[reg_wb_i.rd] <= reg_use_cnt_ff[reg_wb_i.rd] - 1'b1;
         end
 
         if (reg_write_sync) begin
-          reg_use_cnt_ff[rd_o] <= reg_use_cnt_ff[rd_o] + 1'b1;
+          reg_use_cnt_ff[data_o.rd] <= reg_use_cnt_ff[data_o.rd] + 1'b1;
         end
       end
     end
@@ -187,20 +154,20 @@ module InsnDecodeStage #(
 
   // OUT ASSIGNMENTS
 
-  assign imm_o = imm;
-  assign rd_o = instr_fields.rd;
-  assign pc_o = pc_ff;
-  assign wb_type_o = wb_type;
-  assign mem_op_o = mem_op;
-  assign mem_op_type_o = mem_op_type;
-  assign pc_jump_en_o = pc_jump_en;
-  assign pc_addr_type_o = m_pc_addr_type;
-  assign alu_op_o = alu_op;
-  assign arg_src_1_o = arg_src_1;
-  assign arg_src_2_o = arg_src_2;
-  assign mdu_op_o = mdu_op;
-  assign alu_en_o = alu_en;
-  assign mdu_en_o = mdu_en;
+  assign data_o.imm = imm;
+  assign data_o.rd = instr_fields.rd;
+  assign data_o.pc = data_ff.pc;
+  assign data_o.wb_type = wb_type;
+  assign data_o.mem_op = mem_op;
+  assign data_o.mem_op_type = mem_op_type;
+  assign data_o.pc_jump_en = pc_jump_en;
+  assign data_o.pc_addr_type = m_pc_addr_type;
+  assign data_o.alu_op = alu_op;
+  assign data_o.arg_src_1 = arg_src_1;
+  assign data_o.arg_src_2 = arg_src_2;
+  assign data_o.mdu_op = mdu_op;
+  assign data_o.alu_en = alu_en;
+  assign data_o.mdu_en = mdu_en;
   assign halt_ack_o = halt_req_i;
 
   // -----------

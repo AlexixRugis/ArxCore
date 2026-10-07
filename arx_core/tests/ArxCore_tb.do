@@ -6,7 +6,7 @@ while {$argc > 0} {
 }
 
 vlib work
-vlog -hazards -lint -sv -work work \
+vlog -hazards -lint -sv -work work -suppress 13314 \
 ../../src/Timer.sv \
 ../../src/Peripherals.sv \
 ../../src/RomPort.sv \
@@ -14,6 +14,8 @@ vlog -hazards -lint -sv -work work \
 ../../src/RamArbiter2to1.sv \
 ../../src/MemoryInterconnect.sv \
 ../../src/ArxToAvalon.sv \
+../src/include/arx_core_config_pkg.sv \
+../src/include/PipelineTypes.sv \
 ../src/include/LoadStoreTypes.sv \
 ../src/include/BranchTypes.sv \
 ../src/include/IALUTypes.sv \

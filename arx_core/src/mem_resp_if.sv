@@ -1,6 +1,6 @@
-interface mem_resp_if
-  import LoadStoreTypes::*;
-#(
+import LoadStoreTypes::*;
+
+interface mem_resp_if #(
     parameter int unsigned XLEN = 32
 );
 

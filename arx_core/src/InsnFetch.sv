@@ -1,8 +1,7 @@
-module InsnFetch #(
-    parameter int unsigned ADDR_WIDTH = 32,
-    parameter int unsigned INSN_WIDTH = 32,
-    parameter int unsigned EPOCH_WIDTH = 3
-) (
+import arx_core_config_pkg::*;
+import PipelineTypes::*;
+
+module InsnFetch (
     input clk,
     input arstn,
 
@@ -27,9 +26,7 @@ module InsnFetch #(
     output logic valid_out,
     input  logic ready_out,
 
-    output logic [EPOCH_WIDTH-1:0] epoch_out,
-    output logic [ADDR_WIDTH-1:0] pc_out,
-    output logic [INSN_WIDTH-1:0] insn_out
+    output if2id_t data_out
     // -----------------
 );
 
@@ -151,18 +148,18 @@ module InsnFetch #(
     unique case (out_source)
       SOURCE_NONE: begin
         valid_out = 1'b0;
-        insn_out = 'x;
-        pc_out = 'x;
+        data_out.insn = 'x;
+        data_out.pc = 'x;
       end
       SOURCE_MEM: begin
         valid_out = 1'b1;
-        insn_out = mem_insn_in;
-        pc_out = pc;
+        data_out.insn = mem_insn_in;
+        data_out.pc = pc;
       end
       SOURCE_BUF: begin
         valid_out = 1'b1;
-        insn_out = insn_buf;
-        pc_out = pc;
+        data_out.insn = insn_buf;
+        data_out.pc = pc;
       end
     endcase
 
@@ -220,6 +217,6 @@ module InsnFetch #(
     end
   end
 
-  assign epoch_out = '0;
+  assign data_out.epoch = '0;
 
 endmodule

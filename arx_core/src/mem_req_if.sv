@@ -1,6 +1,6 @@
-interface mem_req_if
-  import LoadStoreTypes::*;
-#(
+import LoadStoreTypes::*;
+
+interface mem_req_if #(
     parameter int unsigned ADDR_WIDTH = 32,
     parameter int unsigned XLEN = 32
 );
