@@ -20,6 +20,7 @@ vlog -hazards -lint -sv -work work -suppress 13314 \
 ../src/include/BranchTypes.sv \
 ../src/include/IALUTypes.sv \
 ../src/include/InstrTypes.sv \
+../src/redir_epoch_unit.sv \
 ../src/mem_req_if.sv \
 ../src/mem_resp_if.sv \
 ../src/ExecStage.sv \

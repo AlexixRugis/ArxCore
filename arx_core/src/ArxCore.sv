@@ -54,17 +54,29 @@ module ArxCore (
     output logic [31:0] dbg_x16,
     output logic [31:0] dbg_x17,
 
-    output logic [31:0] dbg_pc_fs,
+    output logic [31:0] dbg_pc_fs1,
+    output logic dbg_vld_fs1,
+    output logic [31:0] dbg_pc_fs2,
+    output logic dbg_vld_fs2,
     output logic [31:0] dbg_pc_id,
+    output logic dbg_vld_id,
     output logic [31:0] dbg_pc_ex,
+    output logic dbg_vld_ex,
     output logic [31:0] dbg_pc_mem,
-    output logic [31:0] dbg_pc_wb
+    output logic dbg_vld_mem,
+    output logic [31:0] dbg_pc_wb,
+    output logic dbg_vld_wb
 );
-  logic halt_req_in;
-  logic halt_ack_out_fs;
-  logic halt_ack_out_id;
-  logic halt_ack_out_ex;
-  logic halt_ack_out_mem;
+
+  logic fetch_en_ff;
+
+  logic all_busy;
+  logic if1_busy;
+  logic if2_busy;
+  logic id_busy;
+  logic ex_busy;
+  logic mem_busy;
+  logic wb_busy;
 
   logic if2id_valid;
   logic if2id_ready;
@@ -75,49 +87,87 @@ module ArxCore (
   logic mem2wb_valid;
   logic mem2wb_ready;
 
-  logic m_is_halted;
-  assign m_is_halted = halt_ack_out_fs & halt_ack_out_id & halt_ack_out_ex & halt_ack_out_mem;
+  logic redirect_req;
+  logic [ADDR_WIDTH-1:0] redirect_pc_req;
+
+  logic redirect_resp;
+  logic [ADDR_WIDTH-1:0] redirect_pc_resp;
+  logic [EPOCH_WIDTH-1:0] redirect_epoch_resp;
+
+  redir_epoch_unit i_redir_epoch_unit (
+      .clk(clk),
+      .arstn(arstn),
+      .redirect_i(redirect_req),
+      .pc_i(redirect_pc_req),
+
+      .redirect_o(redirect_resp),
+      .epoch_o(redirect_epoch_resp),
+      .pc_o(redirect_pc_resp)
+  );
 
   // FETCH STAGE
+
+  mem_req_if #(
+      .ADDR_WIDTH(ADDR_WIDTH),
+      .XLEN(XLEN)
+  ) i_prog_mem_req ();
+
+  mem_resp_if #(.XLEN(XLEN)) i_prog_mem_resp ();
+
+  MemReqSplitter #(
+      .XLEN(XLEN),
+      .ADDR_WIDTH(ADDR_WIDTH)
+  ) i_prog_mem_queue (
+      .clk  (clk),
+      .rst_n(arstn),
+
+      .req (i_prog_mem_req),
+      .resp(i_prog_mem_resp),
+
+      .lsu_req_o(rom_req),
+      .lsu_ack_i(rom_ack),
+      .lsu_addr_o(rom_addr),
+      //.lsu_mem_op_type_o(),
+      //.lsu_write_data_o(),
+      .lsu_read_data_i(rom_data)
+  );
 
   logic   [31:0] fs_pc_in;
   logic          fs_pc_we_in;
 
   if2id_t        if2id_data;
-  assign dbg_pc_fs = if2id_data.pc;
+  assign dbg_pc_fs2 = if2id_data.pc;
 
   InsnFetch i_fetch (
       .clk  (clk),
       .arstn(arstn),
 
-      // HALT REQ
-      .halt_req_in (halt_req_in),
-      .halt_ack_out(halt_ack_out_fs),
-      // -----------------
+      .fetch_en_i(fetch_en_ff),
 
       // MEMORY INTERFACE
-      .mem_addr(rom_addr),
-      .mem_req(rom_req),
-      .mem_insn_in(rom_data),
-      .mem_ack(rom_ack),
+      .mem_req (i_prog_mem_req),
+      .mem_resp(i_prog_mem_resp),
       // -----------------
 
       // PC SETTING
-      .pc_in(fs_pc_in),
-      .pc_we(fs_pc_we_in),
+      .redir_i(redirect_resp),
+      .redir_pc_i(redirect_pc_resp),
+      .epoch_i(redirect_epoch_resp),
       // -----------------
 
       // OUT DATA
       .valid_out(if2id_valid),
       .ready_out(if2id_ready),
 
-      .data_out(if2id_data)
+      .data_out(if2id_data),
       // -----------------
+
+      .if1_pc_dbg_o(dbg_pc_fs1),
+      .if1_busy_o  (if1_busy),
+      .if2_busy_o  (if2_busy)
   );
 
   // -----------
-
-  logic   id_flush_in;
 
   id2ex_t id2ex_data;
   assign dbg_pc_id = id2ex_data.pc;
@@ -131,10 +181,8 @@ module ArxCore (
       .clk  (clk),
       .arstn(arstn),
 
-      .halt_req_i(halt_req_in),
-      .halt_ack_o(halt_ack_out_id),
-
-      .flush_i(id_flush_in),
+      .redir_i(redirect_resp),
+      .redir_epoch_i(redirect_epoch_resp),
 
       .valid_i(if2id_valid),
       .ready_i(if2id_ready),
@@ -149,7 +197,9 @@ module ArxCore (
       .reg_wb_i(reg_wb),
 
       .dbg_used_regs_o(id_dbg_used_regs_out),
-      .dbg_x_o(id_dbg_x)
+      .dbg_x_o(id_dbg_x),
+
+      .busy_o(id_busy)
   );
 
   assign dbg_x0  = id_dbg_x[0];
@@ -176,18 +226,9 @@ module ArxCore (
   ex2mem_t ex2mem_data;
   assign dbg_pc_ex = ex2mem_data.pc;
 
-  logic [XLEN-1:0] ex_pc_branch_out;
-  assign fs_pc_in = ex_pc_branch_out;
-  logic ex_pc_we_out;
-  assign fs_pc_we_in = ex_pc_we_out;
-  assign id_flush_in = ex_pc_we_out;
-
   ExecStage exec_stage (
       .clk  (clk),
       .arstn(arstn),
-
-      .halt_req_in (halt_req_in),
-      .halt_ack_out(halt_ack_out_ex),
 
       .valid_in(id2ex_valid),
       .ready_in(id2ex_ready),
@@ -199,8 +240,10 @@ module ArxCore (
 
       .data_out(ex2mem_data),
 
-      .pc_branch_out(ex_pc_branch_out),
-      .pc_we_out(ex_pc_we_out)
+      .redir_o(redirect_req),
+      .redir_pc_o(redirect_pc_req),
+
+      .busy_o(ex_busy)
   );
 
   // MEMORY QUEUE
@@ -278,9 +321,6 @@ module ArxCore (
       .clk  (clk),
       .arstn(arstn),
 
-      .halt_req_in (halt_req_in),
-      .halt_ack_out(halt_ack_out_mem),
-
       .valid_in(ex2mem_valid),
       .ready_in(ex2mem_ready),
 
@@ -291,7 +331,9 @@ module ArxCore (
 
       .data_out(mem2wb_data),
 
-      .mem_req(i_data_mem_req)
+      .mem_req(i_data_mem_req),
+
+      .busy_o(mem_busy)
   );
 
   // WRITEBACK STAGE
@@ -312,27 +354,30 @@ module ArxCore (
 
       .mem_resp(i_data_mem_resp),
 
-      .pc_o(wb_pc_out)
+      .pc_o(wb_pc_out),
+
+      .busy_o(wb_busy)
   );
 
   // HALT controls
 
+  assign all_busy = if1_busy | if2_busy | id_busy | ex_busy | mem_busy | wb_busy;
+
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
-      halt_req_in <= 1'b0;
-      halted <= 1'b0;
+      fetch_en_ff <= 1'b0;
     end else begin
-      if (halt_req) halt_req_in <= 1'b1;
-      else if (resume_req) halt_req_in <= 1'b0;
+      if (halt_req) fetch_en_ff <= 1'b0;
+      else if (resume_req) fetch_en_ff <= 1'b1;
 
-      halted <= m_is_halted;
+      halted <= ~all_busy;
     end
   end
 
   // MEM connectivity
 
   always_comb begin
-    if (m_is_halted) begin
+    if (~fetch_en_ff && ~all_busy) begin
       ram_addr = mem_debug_addr;
       ram_write_data = mem_debug_write_data;
       ram_we = mem_debug_wr_enable;
@@ -356,5 +401,12 @@ module ArxCore (
       mem_debug_ack = 1'b0;
     end
   end
+
+  assign dbg_vld_fs1  = if1_busy;
+  assign dbg_vld_fs2  = if2_busy;
+  assign dbg_vld_id  = id_busy;
+  assign dbg_vld_ex  = ex_busy;
+  assign dbg_vld_mem = mem_busy;
+  assign dbg_vld_wb  = wb_busy;
 
 endmodule

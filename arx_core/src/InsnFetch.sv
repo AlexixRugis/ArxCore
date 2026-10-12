@@ -1,222 +1,180 @@
 import arx_core_config_pkg::*;
 import PipelineTypes::*;
+import LoadStoreTypes::*;
 
 module InsnFetch (
     input clk,
     input arstn,
 
     // HALT REQ
-    input  logic halt_req_in,
-    output logic halt_ack_out,
+    input logic fetch_en_i,
     // -----------------
 
     // MEMORY INTERFACE
-    output logic [ADDR_WIDTH-1:0] mem_addr,
-    output logic                  mem_req,
-    input  logic [INSN_WIDTH-1:0] mem_insn_in,
-    input                         mem_ack,
+    mem_req_if.master mem_req,
+    mem_resp_if.slave mem_resp,
     // -----------------
 
     // PC SETTING
-    input logic [ADDR_WIDTH-1:0] pc_in,
-    input logic                  pc_we,
+    input logic redir_i,
+    input logic [ADDR_WIDTH-1:0] redir_pc_i,
+    input logic [EPOCH_WIDTH-1:0] epoch_i,
     // -----------------
 
     // OUT DATA
     output logic valid_out,
     input  logic ready_out,
 
-    output if2id_t data_out
+    output if2id_t data_out,
     // -----------------
+
+    output logic [ADDR_WIDTH-1:0] if1_pc_dbg_o,
+    output logic if1_busy_o,
+    output logic if2_busy_o
 );
 
-  typedef enum logic [1:0] {
-    SOURCE_NONE,
-    SOURCE_MEM,
-    SOURCE_BUF
-  } out_source_t;
+  logic redir_pending_ff;
+  logic [ADDR_WIDTH-1:0] redir_pc_ff;
+  logic [EPOCH_WIDTH-1:0] redir_epoch_ff;
 
-  typedef enum logic [1:0] {
-    REQ_NONE,
-    REQ_CUR,
-    REQ_NEXT
-  } mem_req_t;
+  logic mem_req_vld_ff;
+  logic mem_req_vld_next;
 
-  logic [ADDR_WIDTH-1:0] pc_in_buf;
-  logic                  pc_we_buf;
+  logic [EPOCH_WIDTH-1:0] epoch_st1_ff;
+  logic [EPOCH_WIDTH-1:0] epoch_st1_next;
+  logic [EPOCH_WIDTH-1:0] epoch_st2_ff;
 
-  logic [ADDR_WIDTH-1:0] pc_in_internal;
-  logic                  pc_we_internal;
+  logic [2:0] pc_incr_ff;
 
-  assign pc_we_internal = pc_we | pc_we_buf;
-  assign pc_in_internal = pc_we ? pc_in : pc_in_buf;
+  logic [ADDR_WIDTH-1:0] pc_st1_ff;
+  logic [ADDR_WIDTH-1:0] pc_st1_next;
+  logic [ADDR_WIDTH-1:0] pc_st2_ff;
 
-  logic                  pc_we_ack;
+  logic valid_st1_ff;
+  logic valid_st1;
+  logic ready_st1;
+  logic stall_st1;
 
-  logic [ADDR_WIDTH-1:0] pc;
-  logic [ADDR_WIDTH-1:0] pc_next;
+  logic valid_st2_ff;
+  logic valid_st2;
+  logic ready_st2;
+  logic stall_st2;
 
-  logic                  pc_upd;
+  // REDIR
 
-  logic [INSN_WIDTH-1:0] insn_buf;
-  logic                  insn_buf_we;
-
-  assign pc_next = pc_we_internal ? pc_in_internal : (pc + 3'd4);
-
-  out_source_t out_source;
-  mem_req_t    mem_req_type;
-
-  // STATE MACHINE
-  typedef enum logic [1:0] {
-    S_IDLE,
-    S_FETCH,
-    S_WAIT_HANDSHAKE,
-    S_HALT
-  } if_state_t;
-
-  if_state_t next_state, cur_state;
-
-  always_comb begin
-    next_state = cur_state;
-
-    out_source = SOURCE_NONE;
-    mem_req_type = REQ_NONE;
-
-    pc_upd = 1'b0;
-    pc_we_ack = 1'b0;
-    insn_buf_we = 1'b0;
-
-    halt_ack_out = 1'b0;
-
-    unique case (cur_state)
-      S_IDLE: begin
-        next_state = S_FETCH;
+  always_ff @(posedge clk or negedge arstn) begin
+    if (~arstn) begin
+      redir_pending_ff <= 1'b0;
+    end else begin
+      if (ready_st1 & fetch_en_i) begin
+        redir_pending_ff <= 1'b0;
+      end else if (redir_i) begin
+        redir_pending_ff <= 1'b1;
       end
-      S_FETCH: begin
-        mem_req_type = REQ_CUR;
+    end
+  end
 
-        if (mem_ack) begin
-          out_source = SOURCE_MEM;
+  always_ff @(posedge clk) begin
+    if (redir_i) begin
+      redir_pc_ff <= redir_pc_i;
+      redir_epoch_ff <= epoch_i;
+    end
+  end
 
-          if (ready_out | pc_we_internal) begin
-            if (pc_we_internal) begin
-              out_source = SOURCE_NONE;
-              pc_we_ack  = 1'b1;
-            end
+  // IF1
 
-            pc_upd = 1'b1;
-            mem_req_type = REQ_NEXT;
-            next_state = S_FETCH;
-          end else begin
-            insn_buf_we  = 1'b1;
-            mem_req_type = REQ_NONE;
-            next_state   = S_WAIT_HANDSHAKE;
-          end
-        end
+  assign stall_st1 = mem_req_vld_next;
+  assign ready_st1 = ~valid_st1_ff | (~stall_st1 & ready_st2);
+  assign valid_st1 = valid_st1_ff && ~stall_st1;
+
+  assign mem_req_vld_next = mem_req_vld_ff & ~mem_req.ready;
+
+  assign pc_st1_next = redir_i ? redir_pc_i :
+                       redir_pending_ff ? redir_pc_ff : (pc_st1_ff + pc_incr_ff);
+  assign epoch_st1_next = redir_i ? epoch_i :
+                          redir_pending_ff ? redir_epoch_ff : epoch_st1_ff;
+
+  always_ff @(posedge clk or negedge arstn) begin
+    if (~arstn) begin
+      valid_st1_ff <= 1'b0;
+    end else begin
+      if (ready_st1) begin
+        valid_st1_ff <= fetch_en_i;
       end
-      S_WAIT_HANDSHAKE: begin
-        out_source   = SOURCE_BUF;
-        halt_ack_out = halt_req_in;
-
-        if (ready_out | pc_we) begin
-
-          if (pc_we_internal) begin
-            out_source = SOURCE_NONE;
-            pc_we_ack  = 1'b1;
-          end
-
-          pc_upd = 1'b1;
-          mem_req_type = REQ_NEXT;
-          next_state = S_FETCH;
-        end
-      end
-    endcase
+    end
   end
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
-      cur_state <= S_IDLE;
+      pc_incr_ff <= '0;
     end else begin
-      cur_state <= next_state;
+      if (ready_st1 & fetch_en_i) begin
+        pc_incr_ff <= 3'd4;
+      end
     end
   end
-  // -----------------
-
-  // OUT SOURCE
-
-  always_comb begin
-    unique case (out_source)
-      SOURCE_NONE: begin
-        valid_out = 1'b0;
-        data_out.insn = 'x;
-        data_out.pc = 'x;
-      end
-      SOURCE_MEM: begin
-        valid_out = 1'b1;
-        data_out.insn = mem_insn_in;
-        data_out.pc = pc;
-      end
-      SOURCE_BUF: begin
-        valid_out = 1'b1;
-        data_out.insn = insn_buf;
-        data_out.pc = pc;
-      end
-    endcase
-
-    if (halt_req_in) begin
-      valid_out = 1'b0;
-    end
-  end
-
-  // -----------------
-
-  // MEM REQ
-
-  always_comb begin
-    unique case (mem_req_type)
-      REQ_NONE: begin
-        mem_req  = 1'b0;
-        mem_addr = 'x;
-      end
-      REQ_CUR: begin
-        mem_req  = 1'b1;
-        mem_addr = pc;
-      end
-      REQ_NEXT: begin
-        mem_req  = 1'b1;
-        mem_addr = pc_next;
-      end
-    endcase
-  end
-
-  // -----------------
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
-      pc <= '0;
-      insn_buf <= '0;
-
-      pc_we_buf <= 1'b0;
+      pc_st1_ff <= '0;
+      epoch_st1_ff <= '0;
     end else begin
-      if (insn_buf_we) begin
-        insn_buf <= mem_insn_in;
-      end
-
-      if (pc_we & ~pc_we_ack) begin
-        pc_we_buf <= 1'b1;
-        pc_in_buf <= pc_in;
-      end
-
-      if (pc_we_ack) begin
-        pc_we_buf <= 1'b0;
-      end
-
-      if (pc_upd) begin
-        pc <= pc_next;
+      if (ready_st1 & fetch_en_i) begin
+        pc_st1_ff <= pc_st1_next;
+        epoch_st1_ff <= epoch_st1_next;
       end
     end
   end
 
-  assign data_out.epoch = '0;
+  always_ff @(posedge clk or negedge arstn) begin
+    if (~arstn) begin
+      mem_req_vld_ff <= 1'b0;
+    end else begin
+      if (ready_st1) begin
+        mem_req_vld_ff <= fetch_en_i;
+      end else begin
+        mem_req_vld_ff <= mem_req_vld_next;
+      end
+    end
+  end
+
+  assign mem_req.valid = mem_req_vld_ff;
+  assign mem_req.addr = pc_st1_ff;
+  assign mem_req.op = LOAD_WORD;
+  assign mem_req.write_data = '0;
+
+  // IF2
+
+  assign stall_st2 = ~mem_resp.valid;
+  assign ready_st2 = ~valid_st2_ff | (~stall_st2 & ready_out);
+  assign valid_st2 = valid_st2_ff & ~stall_st2;
+
+  always_ff @(posedge clk or negedge arstn) begin
+    if (~arstn) begin
+      valid_st2_ff <= 1'b0;
+    end else begin
+      if (ready_st2) begin
+        valid_st2_ff <= valid_st1;
+      end
+    end
+  end
+
+  always_ff @(posedge clk) begin
+    if (valid_st1 && ready_st2) begin
+      pc_st2_ff <= pc_st1_ff;
+      epoch_st2_ff <= epoch_st1_ff;
+    end
+  end
+
+  assign valid_out = valid_st2;
+  assign data_out.epoch = epoch_st2_ff;
+  assign data_out.pc = pc_st2_ff;
+  assign data_out.insn = mem_resp.data;
+
+  assign mem_resp.ready = valid_st2_ff && ready_out;
+
+  assign if1_pc_dbg_o = pc_st1_ff;
+  assign if1_busy_o = valid_st1_ff;
+  assign if2_busy_o = valid_st2_ff;
 
 endmodule

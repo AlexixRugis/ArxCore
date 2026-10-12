@@ -28,3 +28,4 @@ xxd -p -c1 ${script_dir}/tmp/firmware.bin > ${script_dir}/tmp/firmware.hex
 ${script_dir}/uart_debug.py --port /dev/ttyUSB0 --baudrate 115200 --halt
 ${script_dir}/uart_debug.py --port /dev/ttyUSB0 --baudrate 115200 --upload-firmware ${script_dir}/tmp/firmware.hex
 ${script_dir}/uart_debug.py --port /dev/ttyUSB0 --baudrate 115200 --reset
+${script_dir}/uart_debug.py --port /dev/ttyUSB0 --baudrate 115200 --resume

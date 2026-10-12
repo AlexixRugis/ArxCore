@@ -161,11 +161,18 @@ module ArxCore_tb;
   logic [31:0] dbg_x15;
   logic [31:0] dbg_x16;
   logic [31:0] dbg_x17;
-  logic [31:0] dbg_pc_fs;
+  logic [31:0] dbg_pc_fs1;
+  logic        dbg_vld_fs1;
+  logic [31:0] dbg_pc_fs2;
+  logic        dbg_vld_fs2;
   logic [31:0] dbg_pc_id;
+  logic        dbg_vld_id;
   logic [31:0] dbg_pc_ex;
+  logic        dbg_vld_ex;
   logic [31:0] dbg_pc_mem;
+  logic        dbg_vld_mem;
   logic [31:0] dbg_pc_wb;
+  logic        dbg_vld_wb;
 
 
   logic [31:0] mem_debug_addr;
@@ -221,18 +228,25 @@ module ArxCore_tb;
       .dbg_x15(dbg_x15),
       .dbg_x16(dbg_x16),
       .dbg_x17(dbg_x17),
-      .dbg_pc_fs(dbg_pc_fs),
+      .dbg_pc_fs1(dbg_pc_fs1),
+      .dbg_vld_fs1(dbg_vld_fs1),
+      .dbg_pc_fs2(dbg_pc_fs2),
+      .dbg_vld_fs2(dbg_vld_fs2),
       .dbg_pc_id(dbg_pc_id),
+      .dbg_vld_id(dbg_vld_id),
       .dbg_pc_ex(dbg_pc_ex),
+      .dbg_vld_ex(dbg_vld_ex),
       .dbg_pc_mem(dbg_pc_mem),
-      .dbg_pc_wb(dbg_pc_wb)
+      .dbg_vld_mem(dbg_vld_mem),
+      .dbg_pc_wb(dbg_pc_wb),
+      .dbg_vld_wb(dbg_vld_wb)
   );
 
   // -----------
 
   initial begin
     halt_req <= 1'b0;
-    resume_req <= 1'b0;
+    resume_req <= 1'b1;
 
     mem_debug_req <= 1'b0;
   end
@@ -288,8 +302,10 @@ module ArxCore_tb;
     cycle = 0;
     while (cycle < TRACE_TIMEOUT) begin
       @(posedge clk);
-      $fdisplay(fd, "%d: %d %d %d %d %d", cycle, dbg_pc_fs, dbg_pc_id, dbg_pc_ex, dbg_pc_mem,
-                dbg_pc_wb);
+      $fdisplay(fd, "%d: %d %d %d %d %d %d", cycle, dbg_vld_fs1 ? dbg_pc_fs1 : 'x,
+                dbg_vld_fs2 ? dbg_pc_fs2 : 'x, dbg_vld_id ? dbg_pc_id : 'x,
+                dbg_vld_ex ? dbg_pc_ex : 'x, dbg_vld_mem ? dbg_pc_mem : 'x,
+                dbg_vld_wb ? dbg_pc_wb : 'x);
       cycle++;
     end
 

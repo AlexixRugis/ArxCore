@@ -21,7 +21,9 @@ module WriteBackStage (
     mem_resp_if.slave mem_resp,
     // -----------
 
-    output logic [ADDR_WIDTH-1:0] pc_o
+    output logic [ADDR_WIDTH-1:0] pc_o,
+
+    output logic busy_o
 );
 
   logic    valid_ff;
@@ -65,6 +67,8 @@ module WriteBackStage (
       reg_wb_o.data = '0;
     end
   end
+
+  assign busy_o = valid_ff;
 
   // -----------
 

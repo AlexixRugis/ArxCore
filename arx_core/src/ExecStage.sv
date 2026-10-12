@@ -9,11 +9,6 @@ module ExecStage (
     input logic clk,
     input logic arstn,
 
-    // HALT REQ
-    input  logic halt_req_in,
-    output logic halt_ack_out,
-    // -----------
-
     // FROM ID STAGE
     input  logic valid_in,
     output logic ready_in,
@@ -28,12 +23,16 @@ module ExecStage (
     output ex2mem_t data_out,
 
     // -----------
-    output logic [XLEN-1:0] pc_branch_out,
-    output logic            pc_we_out
+    output logic redir_o,
+    output logic [XLEN-1:0] redir_pc_o,
+
+    output logic busy_o
 );
 
   wire m_in_handshake;
   assign m_in_handshake = ready_in & valid_in;
+
+  logic   m_valid_in;
 
   logic   m_alu_valid_in;
   logic   m_alu_ready_in;
@@ -48,6 +47,16 @@ module ExecStage (
   // STAGE REGISTERS
 
   id2ex_t data_ff;
+
+  always_ff @(posedge clk or negedge arstn) begin
+    if (~arstn) begin
+      m_valid_in <= 1'b0;
+    end else begin
+      if (ready_in) begin
+        m_valid_in <= valid_in;
+      end
+    end
+  end
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
@@ -139,36 +148,26 @@ module ExecStage (
     data_out.rd = data_ff.rd;
     data_out.pc = data_ff.pc;
 
-    pc_branch_out = (data_ff.pc_addr_type === BRANCH_REG_IMM ? data_ff.rs1 : data_ff.pc) + data_ff.imm;
-    pc_we_out = (data_ff.alu_en & ialu_branch_en | data_ff.pc_jump_en) & valid_out & ready_out;
+    redir_pc_o = (data_ff.pc_addr_type === BRANCH_REG_IMM ? data_ff.rs1 : data_ff.pc) + data_ff.imm;
+    redir_o = (data_ff.alu_en & ialu_branch_en | data_ff.pc_jump_en) & valid_out & ready_out;
 
     data_out.wb_type = data_ff.wb_type;
     data_out.mem_op = data_ff.mem_op;
     data_out.mem_op_type = data_ff.mem_op_type;
-
-    halt_ack_out = halt_req_in;
   end
 
   always_comb begin
-    if (~halt_req_in) begin
-      ready_in = m_alu_ready_in & m_mdu_ready_in;
-      valid_out = data_ff.alu_en & m_alu_valid_out | data_ff.mdu_en & m_mdu_valid_out;
+    ready_in = m_alu_ready_in & m_mdu_ready_in;
+    valid_out = data_ff.alu_en & m_alu_valid_out | data_ff.mdu_en & m_mdu_valid_out;
 
-      m_alu_valid_in = valid_in & ready_in & data_in.alu_en;
-      m_alu_ready_out = ready_out;
+    m_alu_valid_in = valid_in & ready_in & data_in.alu_en;
+    m_alu_ready_out = ready_out;
 
-      m_mdu_valid_in = valid_in & ready_in & data_in.mdu_en;
-      m_mdu_ready_out = ready_out;
-    end else begin
-      ready_in = 1'b0;
-      valid_out = 1'b0;
-
-      m_alu_valid_in = 1'b0;
-      m_alu_ready_out = 1'b0;
-      m_mdu_valid_in = 1'b0;
-      m_mdu_ready_out = 1'b0;
-    end
+    m_mdu_valid_in = valid_in & ready_in & data_in.mdu_en;
+    m_mdu_ready_out = ready_out;
   end
+
+  assign busy_o = m_valid_in;
 
   // -----------
 

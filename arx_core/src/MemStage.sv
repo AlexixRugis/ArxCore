@@ -7,11 +7,6 @@ module MemStage (
     input logic clk,
     input logic arstn,
 
-    // HALT REQ
-    input  logic halt_req_in,
-    output logic halt_ack_out,
-    // -----------
-
     // FROM EXEC STAGE
     input  logic valid_in,
     output logic ready_in,
@@ -27,7 +22,9 @@ module MemStage (
     // -----------
 
     // TO LSU
-    mem_req_if.master mem_req
+    mem_req_if.master mem_req,
+
+    output logic busy_o
 );
 
   // STAGE REGISTERS
@@ -82,8 +79,6 @@ module MemStage (
   // OUT ASSIGNMENTS
 
   always_comb begin
-    halt_ack_out = halt_req_in && (!mem_req_vld_ff || !valid_ff);
-
     data_out.wb_type = data_ff.wb_type;
     data_out.mem_op = data_ff.mem_op;
     data_out.alu_res = data_ff.alu_res;
@@ -92,14 +87,11 @@ module MemStage (
   end
 
   always_comb begin
-    if (~halt_req_in) begin
-      valid_out = valid_ff && !mem_req_vld_next;
-      ready_in  = ~valid_ff | (valid_out & ready_out);
-    end else begin
-      valid_out = 1'b0;
-      ready_in  = 1'b0;
-    end
+    valid_out = valid_ff && !mem_req_vld_next;
+    ready_in  = ~valid_ff | (valid_out & ready_out);
   end
+
+  assign busy_o = valid_ff;
 
   // -----------
 

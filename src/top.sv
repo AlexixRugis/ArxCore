@@ -201,7 +201,7 @@ module top (
   logic [31:0] dbg_x1;
   logic [31:0] dbg_x2;
   logic [31:0] dbg_x3;
-  logic [31:0] dbg_pc_fs;
+  logic [31:0] dbg_pc_fs1;
 
   logic [31:0] mem_debug_addr;
   logic [31:0] mem_debug_write_data;
@@ -243,7 +243,7 @@ module top (
       .dbg_x1(dbg_x1),
       .dbg_x2(dbg_x2),
       .dbg_x3(dbg_x3),
-      .dbg_pc_fs(dbg_pc_fs)
+      .dbg_pc_fs1(dbg_pc_fs1)
   );
 
   logic halt_req_debug_mod;
@@ -367,7 +367,7 @@ module top (
       3'b001:  digit = dbg_x1;
       3'b010:  digit = dbg_x2;
       3'b011:  digit = dbg_x3;
-      3'b100:  digit = dbg_pc_fs;
+      3'b100:  digit = dbg_pc_fs1;
       3'b101:  digit = rom_val;
       default: digit = 32'hffffffff;
 

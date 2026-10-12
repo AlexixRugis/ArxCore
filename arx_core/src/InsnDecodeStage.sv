@@ -9,12 +9,10 @@ module InsnDecodeStage (
     input logic clk,
     input logic arstn,
 
-    // HALT REQ
-    input  logic halt_req_i,
-    output logic halt_ack_o,
+    // REDIR
+    input logic redir_i,
+    input logic [EPOCH_WIDTH-1:0] redir_epoch_i,
     // -----------
-
-    input logic flush_i,
 
     // FROM FETCH STAGE
     input  logic valid_i,
@@ -31,72 +29,85 @@ module InsnDecodeStage (
     // -----------
 
     // FROM WRITE BACK
-    input reg_wb_t reg_wb_i,
+    input  reg_wb_t            reg_wb_i,
     // -----------
-    output logic [     2:0] dbg_used_regs_o[32],
-    output logic [XLEN-1:0] dbg_x_o        [18]
+    output logic    [     2:0] dbg_used_regs_o[32],
+    output logic    [XLEN-1:0] dbg_x_o        [18],
+
+    output logic busy_o
 );
 
   // STAGE REGISTERS
 
-  logic                     valid_ff;
+  logic                            valid_ff;
+  logic                            valid_next;
 
-  if2id_t                   data_ff;
+  logic          [EPOCH_WIDTH-1:0] epoch_ff;
+  logic          [EPOCH_WIDTH-1:0] epoch_next;
 
-  logic          [     1:0] reg_use_cnt_ff [32];
+  if2id_t                          data_ff;
 
-  logic                     need_stall;
-  logic                     reg_write_sync;
-  instr_fields_t            instr_fields;
+  logic          [            1:0] reg_use_cnt_ff [32];
 
-  logic          [XLEN-1:0] imm;
+  logic                            need_stall;
+  logic                            reg_write_sync;
+  instr_fields_t                   instr_fields;
 
-  wb_type_e                 wb_type;
+  logic          [       XLEN-1:0] imm;
 
-  logic                     mem_op;
-  ls_type_e                 mem_op_type;
+  wb_type_e                        wb_type;
 
-  logic                     pc_jump_en;
-  branch_type_e             m_pc_addr_type;
+  logic                            mem_op;
+  ls_type_e                        mem_op_type;
 
-  logic                     alu_en;
-  alu_op_e                  alu_op;
+  logic                            pc_jump_en;
+  branch_type_e                    m_pc_addr_type;
+
+  logic                            alu_en;
+  alu_op_e                         alu_op;
 
 
-  logic                     mdu_en;
-  mdu_op_e                  mdu_op;
+  logic                            mdu_en;
+  mdu_op_e                         mdu_op;
 
-  alu_src1_e                arg_src_1;
-  alu_src2_e                arg_src_2;
+  alu_src1_e                       arg_src_1;
+  alu_src2_e                       arg_src_2;
 
   assign need_stall = (|(reg_use_cnt_ff[instr_fields.rs_1])) || (|(reg_use_cnt_ff[instr_fields.rs_2]));
+
+  assign valid_next = valid_i && (epoch_next == data_i.epoch);
 
   always_ff @(posedge clk or negedge arstn) begin
     if (~arstn) begin
       valid_ff <= 1'b0;
     end else begin
-      if (ready_i && valid_i) begin
+      if (ready_i && valid_next) begin
         valid_ff <= 1'b1;
-      end else if (flush_i || valid_o && ready_o) begin
+      end else if (redir_i || valid_o && ready_o) begin
         valid_ff <= 1'b0;
       end
     end
   end
 
   always_ff @(posedge clk) begin
-    if (valid_i && ready_i) begin
+    if (ready_i && valid_next) begin
       data_ff <= data_i;
     end
   end
 
-  always_comb begin
-    if (~flush_i & ~halt_req_i) begin
-      ready_i = !valid_ff || (~need_stall && ready_o);
-      valid_o = valid_ff && !need_stall;
+  assign epoch_next = redir_i ? redir_epoch_i : epoch_ff;
+
+  always_ff @(posedge clk or negedge arstn) begin
+    if (~arstn) begin
+      epoch_ff <= '0;
     end else begin
-      ready_i = 1'b0;
-      valid_o = 1'b0;
+      epoch_ff <= epoch_next;
     end
+  end
+
+  always_comb begin
+    ready_i = !valid_ff || (~need_stall && ready_o);
+    valid_o = ~redir_i && valid_ff && !need_stall;
   end
 
   // -----------
@@ -157,6 +168,7 @@ module InsnDecodeStage (
   assign data_o.imm = imm;
   assign data_o.rd = instr_fields.rd;
   assign data_o.pc = data_ff.pc;
+  assign data_o.epoch = data_ff.epoch;
   assign data_o.wb_type = wb_type;
   assign data_o.mem_op = mem_op;
   assign data_o.mem_op_type = mem_op_type;
@@ -168,7 +180,8 @@ module InsnDecodeStage (
   assign data_o.mdu_op = mdu_op;
   assign data_o.alu_en = alu_en;
   assign data_o.mdu_en = mdu_en;
-  assign halt_ack_o = halt_req_i;
+
+  assign busy_o = valid_ff;
 
   // -----------
 
