@@ -10,19 +10,29 @@ add_subdirectory(
     ${CMAKE_BINARY_DIR}/arx_hal
 )
 
-add_executable(${CMAKE_PROJECT_NAME}.elf
-    main.c
-    $<TARGET_OBJECTS:arx_hal>
-)
+function(add_app src)
+    get_filename_component(name ${src} NAME_WE)
+    set(target ${CMAKE_PROJECT_NAME}_${name}.elf)
 
-target_link_libraries(${CMAKE_PROJECT_NAME}.elf m)
+    add_executable(${target}
+        ${src}
+        $<TARGET_OBJECTS:arx_hal>
+    )
+    
+    target_link_libraries(${target} m)
 
-target_compile_options(${CMAKE_PROJECT_NAME}.elf PRIVATE ${HAL_FLAGS})
+    target_compile_options(${target} PRIVATE ${HAL_FLAGS})
 
-target_link_options(${CMAKE_PROJECT_NAME}.elf PRIVATE
-    -T ${HAL_LINKER_SCRIPT}
-    -nostartfiles
-    -Wl,-Map=output.map,--gc-sections
-    -march=${HAL_ARCH}
-    -mabi=${HAL_ABI}
-)
+    target_link_options(${target} PRIVATE
+        -T ${HAL_LINKER_SCRIPT}
+        -nostartfiles
+        -Wl,-Map=output.map,--gc-sections
+        -march=${HAL_ARCH}
+        -mabi=${HAL_ABI}
+    )
+endfunction()
+
+add_app(main.c)
+add_app(donut.c)
+add_app(mem_throughput.c)
+add_app(pipeline_bug.c)
