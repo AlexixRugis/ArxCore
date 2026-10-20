@@ -7,6 +7,15 @@ while {$argc > 0} {
 
 vlib work
 vlog -hazards -lint -sv -work work -suppress 13314 \
+../src/include/arx_core_config_pkg.sv \
+../src/include/LoadStoreTypes.sv \
+../src/include/BranchTypes.sv \
+../src/include/IALUTypes.sv \
+../src/include/InstrTypes.sv \
+../src/include/PipelineTypes.sv \
+../src/mem_req_if.sv \
+../src/mem_resp_if.sv \
+../src/MemReqJoiner.sv \
 ../../src/Timer.sv \
 ../../src/Peripherals.sv \
 ../../src/RomPort.sv \
@@ -14,15 +23,7 @@ vlog -hazards -lint -sv -work work -suppress 13314 \
 ../../src/RamArbiter2to1.sv \
 ../../src/MemoryInterconnect.sv \
 ../../src/ArxToAvalon.sv \
-../src/include/arx_core_config_pkg.sv \
-../src/include/PipelineTypes.sv \
-../src/include/LoadStoreTypes.sv \
-../src/include/BranchTypes.sv \
-../src/include/IALUTypes.sv \
-../src/include/InstrTypes.sv \
 ../src/redir_epoch_unit.sv \
-../src/mem_req_if.sv \
-../src/mem_resp_if.sv \
 ../src/ExecStage.sv \
 ../src/IALU.sv \
 ../src/IMUL.sv \

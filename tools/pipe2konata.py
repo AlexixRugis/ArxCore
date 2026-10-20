@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
-Конвертер дампа конвейера (IF1 IF2 ID EX MEM WB) в формат Konata (Kanata 0004).
+Pipeline dump -> Kanata 0004 converter with disassembly labels.
 
-Использование:
-    python pipe2konata.py pipeline.txt out.kanata
-    python pipe2konata.py pipeline.txt out.kanata --stages IF1 IF2 ID EX MEM WB
+Usage:
+    python pipe2konata.py pipeline.txt out.kanata --elf program.elf
+    python pipe2konata.py pipeline.txt out.kanata --stages IF1 IF2 ID EX MEM WB --elf program.elf
 """
 import argparse
 import re
+import subprocess
 import sys
 
 LINE_RE = re.compile(r"^\s*(\d+)\s*:\s*(.*)$")
@@ -17,9 +18,36 @@ def parse_pc(tok):
     if tok.lower() == "x":
         return None
     try:
-        return int(tok, 0)      # 12, 0xC
+        return int(tok, 0)
     except ValueError:
         return int(tok)
+
+
+def load_disasm(elf_path, objdump_cmd="objdump"):
+    """Загружает дизассемблированный код из ELF через objdump.
+    Возвращает dict: {pc: "инструкция"}.
+    """
+    try:
+        out = subprocess.check_output(
+            [objdump_cmd, "-d", "--no-show-raw-insn", elf_path],
+            text=True, stderr=subprocess.PIPE
+        )
+    except FileNotFoundError:
+        sys.exit(f"[error] objdump command not found: {objdump_cmd}")
+    except subprocess.CalledProcessError as e:
+        sys.exit(f"[error] objdump failed:\n{e.stderr}")
+
+    disasm = {}
+    # Строки вида: "   10000:\tauipc\tt0,0x0"
+    rx = re.compile(r"^\s*([0-9a-fA-F]+):\s+(.+)$")
+    for line in out.splitlines():
+        m = rx.match(line)
+        if not m:
+            continue
+        pc = int(m.group(1), 16)
+        text = m.group(2).strip().replace("\t", " ")
+        disasm[pc] = text
+    return disasm
 
 
 def read_rows(path, n_stages):
@@ -32,21 +60,24 @@ def read_rows(path, n_stages):
             cycle = int(m.group(1))
             toks = m.group(2).split()
             if len(toks) != n_stages:
-                print(f"[warn] строка {ln}: ожидалось {n_stages} столбцов, "
-                      f"найдено {len(toks)}", file=sys.stderr)
+                print(f"[warn] line {ln}: expected {n_stages} columns, "
+                      f"found {len(toks)}", file=sys.stderr)
                 toks = (toks + ["x"] * n_stages)[:n_stages]
             rows.append((cycle, [parse_pc(t) for t in toks]))
     rows.sort(key=lambda r: r[0])
     return rows
 
 
-def convert(rows, stages):
+def convert(rows, stages, disasm=None):
     n = len(stages)
     events = []          # (cycle, text)
-    active = []          # активные экземпляры инструкций
+    active = []          # active instructions
     next_id = 0
     retire_id = 0
     orphans = 0
+
+    if disasm is None:
+        disasm = {}
 
     def ev(cycle, text):
         events.append((cycle, text))
@@ -64,11 +95,10 @@ def convert(rows, stages):
         claimed = [False] * n
         survivors = []
 
-        # Сначала самые старые (дальние стадии), чтобы они первыми занимали ячейки
         for ins in sorted(active, key=lambda i: -i["stage"]):
             s, pc = ins["stage"], ins["pc"]
             if s == n - 1:
-                # WB длится один такт: инструкция завершена
+                # TODO! WB can take more than one cycle
                 leave(ins, cycle, flushed=False)
             elif cells[s + 1] == pc and not claimed[s + 1]:
                 claimed[s + 1] = True
@@ -77,21 +107,24 @@ def convert(rows, stages):
                 ins["stage"] = s + 1
                 survivors.append(ins)
             elif cells[s] == pc and not claimed[s]:
-                claimed[s] = True            # стол — остаётся на месте
+                claimed[s] = True
                 survivors.append(ins)
             else:
-                leave(ins, cycle, flushed=True)   # flush
+                leave(ins, cycle, flushed=True)
 
         active = survivors
 
-        # Новая инструкция может появиться только в первой стадии
         if cells[0] is not None and not claimed[0]:
             pc = cells[0]
             ins = {"id": next_id, "pc": pc, "stage": 0}
             next_id += 1
             ev(cycle, f"I\t{ins['id']}\t{ins['id']}\t0")
-            ev(cycle, f"L\t{ins['id']}\t0\tPC={pc:#x} ({pc})")
+            # --- Метки ---
+            mnem = disasm.get(pc, "???")
+            print(mnem)
+            ev(cycle, f"L\t{ins['id']}\t0\tPC={pc:#x} {mnem}")
             ev(cycle, f"L\t{ins['id']}\t1\tfetched at cycle {cycle}")
+            # ---------------
             ev(cycle, f"S\t{ins['id']}\t0\t{stages[0]}")
             active.append(ins)
             claimed[0] = True
@@ -99,14 +132,12 @@ def convert(rows, stages):
         orphans += sum(1 for s in range(1, n)
                        if cells[s] is not None and not claimed[s])
 
-    # Завершение: всё, что осталось
     end = rows[-1][0] + 1 if rows else 0
     for ins in sorted(active, key=lambda i: i["id"]):
         leave(ins, end, flushed=(ins["stage"] != n - 1))
 
     if orphans:
-        print(f"[warn] {orphans} ячеек не удалось сопоставить с инструкциями "
-              f"(проигнорированы)", file=sys.stderr)
+        print(f"[warn] couldn't match {orphans} cells with instructions", file=sys.stderr)
     return events, next_id
 
 
@@ -124,21 +155,33 @@ def write_kanata(events, path):
             f.write(text + "\n")
 
 
-def main():
-    ap = argparse.ArgumentParser(description="Дамп конвейера -> Konata (Kanata 0004)")
+def parse_args():
+    ap = argparse.ArgumentParser(description="Pipeline dump -> Konata (Kanata 0004)")
     ap.add_argument("input")
     ap.add_argument("output")
     ap.add_argument("--stages", nargs="+",
                     default=["IF1", "IF2", "ID", "EX", "MEM", "WB"],
-                    help="имена стадий слева направо")
-    args = ap.parse_args()
+                    help="Pipeline stage names")
+    ap.add_argument("--elf", help="ELF file for disassembly")
+    ap.add_argument("--objdump", default="riscv64-unknown-elf-objdump",
+                    help="objdump command (default: riscv64-unknown-elf-objdump)")
+    return ap.parse_args()
+
+
+def main():
+    args = parse_args()
+
+    disasm = {}
+    if args.elf:
+        disasm = load_disasm(args.elf, args.objdump)
 
     rows = read_rows(args.input, len(args.stages))
     if not rows:
-        sys.exit("Во входном файле нет строк вида 'N: ...'")
-    events, count = convert(rows, args.stages)
+        sys.exit("There are no rows formatted like 'N: ...'")
+    events, count = convert(rows, args.stages, disasm)
     write_kanata(events, args.output)
-    print(f"Готово: {count} инструкций, {len(rows)} тактов -> {args.output}")
+
+    print(f"Done: {count} insts, {len(rows)} cycles -> {args.output}")
 
 
 if __name__ == "__main__":

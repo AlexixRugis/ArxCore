@@ -144,17 +144,36 @@ module MemoryInterconnect (
   logic        ram_arb_req;
   logic        ram_arb_ack;
 
+  mem_req_if #(
+      .ADDR_WIDTH(32),
+      .XLEN(32)
+  ) ram_port_req_if ();
+
+  mem_resp_if #(.XLEN(32)) ram_port_resp_if ();
+
+  MemReqJoiner #(
+      .XLEN(32),
+      .ADDR_WIDTH(32)
+  ) ram_port_joiner (
+      .clk(clk),
+      .rst_n(arstn),
+      .req(ram_port_req_if),
+      .resp(ram_port_resp_if),
+      .lsu_req_i(ram_arb_req),
+      .lsu_ack_o(ram_arb_ack),
+      .lsu_addr_i(ram_arb_addr),
+      .lsu_wr_en_i(ram_arb_wr_en),
+      .lsu_wr_mask_i(ram_arb_wr_mask),
+      .lsu_write_data_i(ram_arb_write_data),
+      .lsu_read_data_o(ram_arb_data)
+  );
+
   RamPort ram_port_inst (
       .clk(clk),
       .arstn(arstn),
       .clk_en(clk_en),
-      .addr(ram_arb_addr),
-      .write_data(ram_arb_write_data),
-      .wr_en(ram_arb_wr_en),
-      .wr_mask(ram_arb_wr_mask),
-      .req(ram_arb_req),
-      .data(ram_arb_data),
-      .ack(ram_arb_ack),
+      .req(ram_port_req_if),
+      .resp(ram_port_resp_if),
       .ram_addr(ram_addr),
       .ram_write_data(ram_write_data),
       .ram_wr_en(ram_wr_en),
@@ -202,17 +221,36 @@ module MemoryInterconnect (
   logic        periph_arb_req;
   logic        periph_arb_ack;
 
+  mem_req_if #(
+      .ADDR_WIDTH(32),
+      .XLEN(32)
+  ) periph_port_req_if ();
+
+  mem_resp_if #(.XLEN(32)) periph_port_resp_if ();
+
+  MemReqJoiner #(
+      .XLEN(32),
+      .ADDR_WIDTH(32)
+  ) periph_port_joiner (
+      .clk(clk),
+      .rst_n(arstn),
+      .req(periph_port_req_if),
+      .resp(periph_port_resp_if),
+      .lsu_req_i(periph_arb_req),
+      .lsu_ack_o(periph_arb_ack),
+      .lsu_addr_i(periph_arb_addr),
+      .lsu_wr_en_i(periph_arb_wr_en),
+      .lsu_wr_mask_i(periph_arb_wr_mask),
+      .lsu_write_data_i(periph_arb_write_data),
+      .lsu_read_data_o(periph_arb_data)
+  );
+
   RamPort periph_port_inst (
       .clk(clk),
       .arstn(arstn),
       .clk_en(clk_en),
-      .addr(periph_arb_addr),
-      .write_data(periph_arb_write_data),
-      .wr_en(periph_arb_wr_en),
-      .wr_mask(periph_arb_wr_mask),
-      .req(periph_arb_req),
-      .data(periph_arb_data),
-      .ack(periph_arb_ack),
+      .req(periph_port_req_if),
+      .resp(periph_port_resp_if),
       .ram_addr(periph_addr),
       .ram_write_data(periph_write_data),
       .ram_wr_en(periph_wr_en),

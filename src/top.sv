@@ -69,17 +69,36 @@ module top (
   logic [31:0] rom_wr_port_data;
   logic        rom_wr_port_ack;
 
+  mem_req_if #(
+      .ADDR_WIDTH(32),
+      .XLEN(32)
+  ) rom_wr_port_req_if ();
+
+  mem_resp_if #(.XLEN(32)) rom_wr_port_resp_if ();
+
+  MemReqJoiner #(
+      .XLEN(32),
+      .ADDR_WIDTH(32)
+  ) rom_wr_port_joiner (
+      .clk(clk_50_mhz),
+      .rst_n(arstn),
+      .req(rom_wr_port_req_if),
+      .resp(rom_wr_port_resp_if),
+      .lsu_req_i(rom_wr_port_req),
+      .lsu_ack_o(rom_wr_port_ack),
+      .lsu_addr_i(rom_wr_port_addr),
+      .lsu_wr_en_i(rom_wr_port_we),
+      .lsu_wr_mask_i(rom_wr_port_mask),
+      .lsu_write_data_i(rom_wr_port_write_data),
+      .lsu_read_data_o(rom_wr_port_data)
+  );
+
   RamPort rom_port_b_inst (
       .clk(clk_50_mhz),
       .arstn(arstn),
       .clk_en(1'b1),
-      .addr(rom_wr_port_addr),
-      .write_data(rom_wr_port_write_data),
-      .wr_en(rom_wr_port_we),
-      .wr_mask(rom_wr_port_mask),
-      .req(rom_wr_port_req),
-      .data(rom_wr_port_data),
-      .ack(rom_wr_port_ack),
+      .req(rom_wr_port_req_if),
+      .resp(rom_wr_port_resp_if),
       .ram_addr(port_b_addr),
       .ram_write_data(port_b_write_data),
       .ram_wr_en(port_b_we),
